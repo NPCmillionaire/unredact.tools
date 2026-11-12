@@ -8,10 +8,11 @@
 ![python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![local-first](https://img.shields.io/badge/runs-100%25%20local-2ea44f)
 ![formats](https://img.shields.io/badge/formats-images%20·%20PDF%20·%20Office%20·%20media%20·%20text-6f42c1)
+![version](https://img.shields.io/badge/version-0.2.0-555)
 
 [**Install**](#-install) · [**Usage**](#-usage) · [**What it detects**](#-what-it-detects) · [**How sanitizing works**](#-how-sanitizing-works) · [**Roadmap**](#-roadmap)
 
-<sub>Part of the <a href="https://unredact.tools"><b>unredact.tools</b></a> privacy suite</sub>
+<sub>Local-first OPSEC for files: metadata, hidden content, redactions, pixels, prints and shadows.</sub>
 
 <br>
 
@@ -78,8 +79,11 @@ Good tools exist (ExifTool, mat2, Dangerzone), but each one does a single job, a
 ```bash
 git clone https://github.com/NPCmillionaire/unredact.tools
 cd unredact.tools
-pip install -e .
+pip install -e ".[all]"            # or just `pip install -e .` for metadata-only
+brew install tesseract ffmpeg      # apt install tesseract-ocr ffmpeg on Linux
 ```
+
+This installs three equivalent commands: **`unredact.tools`**, the short **`unredact`**, and the legacy `unredact-file`.
 
 <details>
 <summary><b>Optional extras</b></summary>
@@ -88,7 +92,8 @@ pip install -e .
 |---|---|---|
 | HEIC / HEIF | `pip install -e ".[heic]"` | iPhone photos |
 | Audio / video | `brew install ffmpeg` · `apt install ffmpeg` | MP4, MOV, MKV, MP3, FLAC… |
-| **Visual checks** | `pip install -e ".[vision]"` + `brew install tesseract` · `apt install tesseract-ocr` | OCR, QR/barcodes, faces, pixelation, printer dots, camera ID |
+| **Visual checks** | `pip install -e ".[vision]"` + `brew install tesseract` · `apt install tesseract-ocr` | OCR, QR/barcodes, plates, faces, pixelation, printer dots, camera ID |
+| AI scene review *(optional)* | [Ollama](https://ollama.com) + `ollama pull qwen3-vl:8b` | `scan --scene`: reflections, landmarks, regional clues |
 | Everything | `pip install -e ".[all]"` | all of the above |
 | Dev / tests | `pip install -e ".[dev]"` | pytest + leaky-fixture generators |
 
@@ -107,7 +112,10 @@ unredact.tools scan memo.docx --extract ./loot    # save recovered artifacts
 unredact.tools scan filing.pdf --json             # machine-readable
 unredact.tools scan photo.jpg --all               # include info-level findings
 unredact.tools scan big_folder/* --fast           # metadata only (skip OCR / vision)
+unredact.tools scan selfie.jpg --scene            # + AI scene review (local Ollama)
 ```
+
+`--scene` asks a vision model to look at the image the way an OSINT analyst would: reflections in sunglasses and windows, landmarks and skylines, regional giveaways (outlets, road markings, signage language), logos, documents, and which way the shadows fall. It runs **locally through Ollama** by default. `--scene anthropic` uses Claude through the Anthropic API instead (needs `ANTHROPIC_API_KEY`). That option uploads the image after it's re-encoded with all metadata stripped, and the tool warns you each time.
 
 `--extract` writes out everything the scan recovered (embedded thumbnails, earlier PDF revisions, attachments, motion-photo video, embedded documents) to `./loot/<file>_artifacts/`.
 
@@ -122,8 +130,9 @@ unredact.tools sanitize report.pdf --pdf-mode text  # keep selectable text
 # visual redaction (images and raster PDFs)
 unredact.tools sanitize screenshot.png --redact-text --redact-codes
 unredact.tools sanitize party.jpg --blur-faces
+unredact.tools sanitize driveway.jpg --redact-plates
 unredact.tools sanitize photo.jpg --redact-region 120,40,300,60
-unredact.tools sanitize screenshot.png --visual      # faces + codes + text
+unredact.tools sanitize screenshot.png --visual      # faces + codes + text + plates
 ```
 
 Printer tracking dots are removed automatically. When a leak survives, `sanitize` tells you which flag fixes it:
@@ -154,6 +163,33 @@ unredact.tools sanitize anonymous_post.jpg --desync               # imperceptibl
 
 > [!NOTE]
 > The original file is **never modified**. Every output is re-scanned automatically, and anything that survived is listed.
+
+### Sun & shadow geolocation
+
+The sun's height and direction at a given moment depend only on where you are. A photo's timestamp plus one measurable shadow narrows down where it was taken, with no GPS required. This is the technique Bellingcat and other OSINT investigators use by hand.
+
+```bash
+unredact.tools sun --photo beach.jpg --shadow-ratio 1:1.8                 # time from EXIF
+unredact.tools sun --time 2026-11-10T14:30-05:00 --shadow-ratio 1:2.38 --shadow-bearing 37
+unredact.tools sun --time 2026-11-10T14:30-05:00 --where 41.10,-80.65     # what shadows should look like there
+```
+
+```console
+  sun elevation from the shadow: 22.8°
+  best match: 41.25, -80.75  (candidate area ~666 x 876 km)
+```
+
+Without a shadow bearing you get a circle of possible places, narrowed to the photo's time zone. Adding the bearing narrows it to one area. `--geojson` writes every candidate point for a map. `scan` flags photos whose EXIF time includes a time zone, since that's what makes this attack possible.
+
+### Printer tracking dots, decoded
+
+Color laser printers hide a faint yellow dot grid on every page. When a scan carries the **Xerox DocuColor** pattern (the one the EFF reverse-engineered in 2005), `scan` decodes it: **printer serial number and the date and time it was printed**. Parity correction fixes single misread dots, and every copy of the grid on the page votes on the result. Other brands' patterns are still detected, extracted and removed, but they haven't been publicly decoded.
+
+```console
+  [CRITICAL] Printer tracking dots DECODED (Xerox DocuColor)
+             Printer serial number 21052857, printed 2026-11-12 13:45 (printer clock, often UTC).
+             70/70 copies of the pattern agree; parity OK.
+```
 
 ### Help & OPSEC tips
 
@@ -193,7 +229,7 @@ Detection is organized into four layers:
 |---|---|:---:|
 | **1 · Hard metadata** | Fields stored alongside the content | ✅ shipped |
 | **2 · Broken redactions & hidden content** | Content the author believes is gone or invisible | ✅ shipped |
-| **3 · Visual content OSINT** | What the pixels themselves reveal | 🚧 codes, faces shipped · scene analysis next |
+| **3 · Visual content OSINT** | What the pixels themselves reveal | ✅ shipped (AI scene review is opt-in) |
 | **4 · Fingerprinting & tracking** | Marks that tie a file to a person, device, or copy | ✅ shipped |
 
 <sub>✅ shipped &nbsp;·&nbsp; 🚧 partial &nbsp;·&nbsp; 🗺️ planned</sub>
@@ -245,17 +281,18 @@ Detection is organized into four layers:
 </details>
 
 <details open>
-<summary><h3>Layer 3 · Visual content OSINT <sup>partial</sup></h3></summary>
+<summary><h3>Layer 3 · Visual content OSINT</h3></summary>
 
 *What a human analyst, or a vision model, can work out from the pixels themselves. Stripping metadata doesn't touch this.*
 
 | | Leak |
 |:-:|---|
-| 🗺️ | **Reflections** in glasses, windows, screens, and chrome |
+| ✅ | **Reflections, landmarks, regional clues, logos, interiors** via the opt-in `--scene` AI review (local Ollama or Claude), with a location and time-of-day guess |
 | ✅ | **QR codes and barcodes** (QR, Aztec, PDF417, Data Matrix, 1D), decoded. **Boarding passes** are parsed (IATA BCBP): name, booking reference, flight, route, seat |
 | ✅ | **Faces**: bystanders and children, via OpenCV's YuNet detector, with `--blur-faces` (heavy blur + noise, not a reversible mosaic) |
-| 🚧 | **Readable text in the scene**: OCR catches printed text (labels, screens, documents). Street signs and plates in natural photos are hit-or-miss |
-| 🗺️ | **Geolocation clues**: architecture, vegetation, outlets, road markings, plus **sun angle combined with the timestamp** |
+| ✅ | **License plates**: localized by character-cluster geometry and confirmed by OCR. `--redact-plates` boxes them out |
+| ✅ | **Sun-angle geolocation**: `sun` turns a timestamp + shadow into candidate locations. `scan` gives the sun position at capture for GPS-tagged photos |
+| 🚧 | **Readable text in the scene**: OCR catches printed text (labels, screens, documents). Street signs in natural photos are hit-or-miss, and `--scene` helps there |
 | 🗺️ | **Cross-file correlation** through [unredact.me](https://unredact.me): *"this camera serial also appears in 3 photos on your public Flickr"* |
 
 </details>
@@ -274,7 +311,7 @@ Detection is organized into four layers:
 | ✅ | **Word rsid session IDs** that link drafts | `w:rsid*` attributes |
 | ✅ | **Phone-home objects**: JavaScript, Launch, SubmitForm, remote references | PDF object scan |
 | ✅ | **Persistent document IDs** | PDF `/ID` · XMP instance IDs |
-| ✅ | **Printer tracking dots** (Machine Identification Code) on scans and scanned PDFs | Yellow-speck isolation + grid regularity. Enhanced view extracted; removed by `sanitize` |
+| ✅ | **Printer tracking dots** (Machine Identification Code) on scans and scanned PDFs, with **Xerox DocuColor decoding** (serial + print time) | Yellow-speck isolation, grid extraction, odd-parity correction, majority vote. Removed by `sanitize` |
 | ✅ | **Camera sensor fingerprint (PRNU)** linking photos to one camera | `camera-id` build/match with z-scores; `sanitize --desync` breaks it |
 
 </details>
@@ -342,7 +379,10 @@ unredact_tools/
 ├── pdf.py        redaction checks, revisions, hidden text, JS · raster/text sanitize
 ├── office.py     OOXML part-level analysis + package rewriter
 ├── media.py      ffprobe / ffmpeg wrapper
-├── vision.py     OCR · QR/barcodes · faces · pixelation · printer dots · PRNU
+├── vision.py     OCR · QR/barcodes · plates · faces · pixelation · printer dots · PRNU
+├── printerdots.py  DocuColor tracking-dot extraction + decoding
+├── sun.py        NOAA solar position · shadow geolocation
+├── scene.py      opt-in AI scene review (Ollama / Anthropic)
 ├── banner.py     help banner + OPSEC tip box
 └── tips.py       rotating OPSEC advice
 ```
@@ -362,11 +402,13 @@ unredact_tools/
 ## ⚠️ Limitations
 
 > [!WARNING]
-> **Scene understanding isn't built yet.** Codes, faces and printed text are caught, but reflections, landmarks and other geolocation clues in a photo are not.
+> **AI scene review is a second opinion, not ground truth.** Vision models miss things and occasionally invent them. Treat `--scene` findings as leads to check, and keep the deterministic detectors as the baseline.
 
 - **PRNU survives a normal `sanitize`.** Only `--desync` breaks it. `camera-id` needs full-resolution, uncropped originals to match.
 - **OCR is English-first and tuned for screenshots and documents.** Handwriting, stylized fonts and text in natural scenes are often missed.
-- **Printer-dot removal targets the classic yellow grid.** Other or invisible marking schemes aren't detected.
+- **Printer-dot decoding covers Xerox DocuColor only.** Other brands' grids are detected and removed but not interpreted. Invisible (non-yellow) schemes aren't detected.
+- **License-plate detection is classical computer vision + OCR.** It works on clear, roughly frontal plates; small, angled or dirty plates in busy street scenes can be missed.
+- **Sun geolocation is only as good as the shadow measurement.** About 1° of error moves the answer by roughly 100 km.
 - **Raster PDF mode loses text selection and accessibility.** Use `--pdf-mode text` if you need them.
 - **Excel sanitize removes comment VML**, which also removes legacy form controls.
 - **Encrypted PDFs** are reported but not analyzed.
@@ -384,8 +426,10 @@ unredact_tools/
 - [x] Layer 3: QR / barcode decoding + boarding-pass parsing · face detection
 - [x] Layer 4: printer tracking dots (detect + remove) · PRNU camera ID + `--desync`
 - [x] Visual sanitizing: `--blur-faces`, `--redact-codes`, `--redact-text`, `--redact-region`
-- [ ] Layer 3: scene analysis (reflections, landmarks, sun-angle geolocation) · license plates
-- [ ] Printer-dot decoding (serial number + timestamp, DocuColor pattern)
+- [x] Layer 3: AI scene review (`--scene`) · sun-angle geolocation (`sun`) · license plates
+- [x] Printer-dot decoding (Xerox DocuColor: serial number + print time)
+- [ ] Automatic shadow measurement (find a vertical object and its shadow without user input)
+- [ ] Decoders for other printer dot layouts (Canon, HP, Epson; see DEDA's research)
 - [ ] ODF and camera RAW support
 - [ ] Browser/WASM version on unredact.tools (files never leave the device)
 - [ ] unredact.me integration to cross-reference serials, usernames, and document IDs
@@ -422,6 +466,8 @@ unredact.tools scan ./demo/* --extract ./demo/loot
 | [x-ray](https://github.com/freelawproject/x-ray) | Free Law Project's bad-redaction finder for court PDFs |
 | [DEDA](https://github.com/dfd-tud/deda) | TU Dresden's printer-tracking-dot extraction and anonymisation |
 | [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | Face detector bundled for `--blur-faces` (MIT) |
+| [EFF DocuColor guide](https://w2.eff.org/Privacy/printers/docucolor/) | The 2005 decoding of Xerox tracking dots that `printerdots.py` implements |
+| [SunCalc](https://www.suncalc.org) | The manual tool investigators use for shadow geolocation |
 
 ---
 

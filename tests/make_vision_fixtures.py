@@ -74,14 +74,16 @@ for i in range(40):
     d.text((200, 300 + i * 70), "Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do "
            "eiusmod tempor.", font=font(34), fill=(30, 30, 30))
 rng = np.random.default_rng(7)
-pattern = rng.random((8, 15)) > 0.55  # 15x8 DocuColor-style matrix
+from unredact_tools.printerdots import encode_docucolor  # noqa: E402
+# a real DocuColor matrix: printed 2026-11-12 13:45 on printer serial 21052857
+pattern = encode_docucolor(minute=45, hour=13, day=12, month=11, year=2026, serial="21052857")
 arr = np.asarray(page).copy()
 step, tile_w, tile_h = 8, 15 * 8, 8 * 8
 for ty in range(0, H - tile_h, 256):
     for tx in range(0, W - tile_w, 512):
         for r in range(8):
             for c in range(15):
-                if pattern[r, c] or r == 0 or c == 0:
+                if pattern[r, c]:
                     y, x = ty + r * step, tx + c * step
                     arr[y:y + 2, x:x + 2] = (250, 245, 190)
 noise = rng.normal(0, 2, arr.shape)
@@ -111,4 +113,35 @@ for i in range(4):
     open(P(f"camA_{i}.jpg"), "wb").write(shoot(KA, 100 + i))
 open(P("camA_test.jpg"), "wb").write(shoot(KA, 999))
 open(P("camB_test.jpg"), "wb").write(shoot(KB, 998))
+# 6. license plates on a busy "street" scene (US style + EU style, slightly rotated)
+FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+rng2 = np.random.default_rng(11)
+street = (rng2.normal(0, 18, (900, 1400, 3)) + np.linspace(70, 150, 1400)[None, :, None]).clip(0, 255)
+street = Image.fromarray(street.astype(np.uint8))
+d = ImageDraw.Draw(street)
+d.rounded_rectangle([120, 260, 760, 700], 40, fill=(40, 60, 110))      # car body
+d.rounded_rectangle([860, 300, 1340, 690], 40, fill=(150, 30, 30))    # second car
+
+
+def plate(text, size, header=None):
+    w, h = size
+    im = Image.new("RGB", (w, h), (245, 245, 240))
+    pd = ImageDraw.Draw(im)
+    pd.rectangle([2, 2, w - 3, h - 3], outline=(30, 30, 30), width=4)
+    f = ImageFont.truetype(FONT_B, int(h * (0.4 if header else 0.62)))
+    tw = pd.textlength(text, font=f)
+    ty = int(h * 0.36) if header else int(h * 0.12)
+    pd.text(((w - tw) / 2, ty), text, font=f, fill=(20, 20, 60))
+    if header:
+        fh = ImageFont.truetype(FONT_B, int(h * 0.16))
+        pd.text(((w - pd.textlength(header, font=fh)) / 2, int(h * 0.08)), header, font=fh,
+                fill=(120, 20, 20))
+    return im
+
+
+us = plate("JKL4821", (300, 150), header="OHIO").rotate(3, expand=True, fillcolor=(40, 60, 110))
+street.paste(us, (300, 470))
+eu = plate("BX52KRT", (360, 80)).rotate(-2, expand=True, fillcolor=(150, 30, 30))
+street.paste(eu, (920, 560))
+street.save(P("street.jpg"), quality=90)
 print("vision fixtures in", out)

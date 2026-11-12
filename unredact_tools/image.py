@@ -100,6 +100,7 @@ def _dms(vals, ref):
 
 def _scan_gps(report: Report, gps: dict, source):
     g = {GPSTAGS.get(k, k): v for k, v in gps.items()}
+    coords = None
     try:
         if "GPSLatitude" in g and "GPSLongitude" in g:
             lat = _dms(g["GPSLatitude"], _decode(g.get("GPSLatitudeRef", "N")))
@@ -111,6 +112,7 @@ def _scan_gps(report: Report, gps: dict, source):
                     detail += f"  (accuracy ~{float(g['GPSHPositioningError']):.0f} m)"
                 report.add("critical", "location", "Exact GPS coordinates", detail, source)
                 report.fact("location", f"GPS {lat:.6f}, {lon:.6f} ({url})")
+                coords = (lat, lon)
     except Exception as e:  # noqa: BLE001
         report.errors.append(f"GPS decode: {e}")
     if "GPSAltitude" in g:
@@ -129,6 +131,7 @@ def _scan_gps(report: Report, gps: dict, source):
                    f"{float(g['GPSSpeed']):.1f} {_decode(g.get('GPSSpeedRef', 'K'))}", source)
     if "GPSDateStamp" in g:
         report.add("low", "time", "GPS (UTC) date stamp", _decode(g["GPSDateStamp"]), source)
+    return coords
 
 
 def _thumbnail(exif_bytes: bytes, exif) -> bytes | None:
@@ -230,12 +233,14 @@ def scan_image(path_or_bytes, report: Report | None = None, label="image",
                        f"{len(mn) if isinstance(mn, bytes) else '?'} bytes of proprietary data "
                        "(often serials, shutter count, internal IDs, Apple 'content identifier')",
                        "EXIF")
+        coords = None
         try:
             gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
             if gps:
-                _scan_gps(report, gps, "EXIF GPS")
+                coords = _scan_gps(report, gps, "EXIF GPS")
         except Exception:  # noqa: BLE001
             pass
+        _sun_note(report, merged, coords)
         thumb = _thumbnail(exif_bytes, exif)
         if thumb:
             note = "Embedded EXIF thumbnail"
@@ -326,6 +331,34 @@ def scan_image(path_or_bytes, report: Report | None = None, label="image",
     return report
 
 
+def _sun_note(report: Report, exif: dict, coords):
+    """A timestamp with a time zone lets visible shadows geolocate a photo."""
+    from datetime import datetime, timedelta, timezone
+    raw, off = _decode(exif.get("DateTimeOriginal", "")), _decode(exif.get("OffsetTimeOriginal", ""))
+    if not raw or not off:
+        return
+    try:
+        d = datetime.strptime(raw, "%Y:%m:%d %H:%M:%S")
+        sign = -1 if off.startswith("-") else 1
+        hh, mm = off.strip("+-").split(":")[:2]
+        d = d.replace(tzinfo=timezone(sign * timedelta(hours=int(hh), minutes=int(mm))))
+    except (ValueError, TypeError):
+        return
+    if coords:
+        from .sun import compass, solar_position
+        el, az = solar_position(d, *coords)
+        if el > 0:
+            report.add("info", "location", "Sun position at capture",
+                       f"elevation {el:.0f}°, azimuth {az:.0f}° ({compass(az)}). Shadows in the "
+                       f"photo should point {compass(az + 180)}, which is how investigators "
+                       "verify (or debunk) where a photo was taken.", "EXIF")
+    else:
+        report.add("low", "location", "Exact capture time + time zone",
+                   "If any shadow is visible, its angle and this timestamp narrow down where "
+                   "the photo was taken, with no GPS needed. Try: unredact.tools sun --photo "
+                   "<file> --shadow-ratio H:L", "EXIF")
+
+
 # ================================================================ visual layer
 def scan_visual(report: Report, img, ocr=True, faces=True, source="pixels"):
     """Run the pixel-level detectors (see vision.py) and add findings."""
@@ -366,6 +399,13 @@ def scan_visual(report: Report, img, ocr=True, faces=True, source="pixels"):
             report.fact(bucket if bucket in ("identity", "location", "network") else "hidden",
                         f"visible {b.label[0].lower() + b.label[1:]}: {b.detail[:60]}")
 
+    if ocr:
+        for b in vision.detect_plates(arr):
+            report.add("high", "identity", f"License plate readable: {b.detail}",
+                       "Plates link to an owner and their movements through data brokers, "
+                       f"ALPR camera networks and (for permitted users) DMV records. {loc(b)}", source)
+            report.fact("identity", f"license plate {b.detail}")
+
     for b in vision.detect_pixelation(arr):
         report.add("high", "redaction", "Pixelated region - may be reversible",
                    f"{b.detail} {loc(b)}. Mosaics over text can be un-pixelated (Depix). "
@@ -382,11 +422,23 @@ def scan_visual(report: Report, img, ocr=True, faces=True, source="pixels"):
 
     dots = vision.detect_printer_dots(arr)
     if dots:
-        report.add("high", "tracking", "Printer tracking dots (Machine Identification Code)",
-                   f"{dots['dots']} faint yellow dots on a {dots['spacing_px']}px grid. Color laser "
-                   "printers encode their serial number and the print date/time this way. "
-                   "Enhanced view extracted.", source)
-        report.fact("tracking", "printer tracking dots (printer serial + print time)")
+        from .printerdots import decode_page
+        dec = decode_page(arr, vision.yellow_dot_mask)
+        if dec and dec.get("decoded"):
+            report.add("critical", "tracking", "Printer tracking dots DECODED (Xerox DocuColor)",
+                       f"Printer serial number {dec['serial']}, printed {dec['printed']} "
+                       f"(printer clock, often UTC). {dec['agree']}/{dec['matrices']} copies of the "
+                       f"pattern agree; {dec['parity']}.", source)
+            report.fact("device", f"printer serial {dec['serial']} (from tracking dots)")
+            report.fact("time", f"printed {dec['printed']} (from tracking dots)")
+        else:
+            n = dec["matrices"] if dec else 0
+            report.add("high", "tracking", "Printer tracking dots (Machine Identification Code)",
+                       f"{dots['dots']} faint yellow dots on a {dots['spacing_px']}px grid "
+                       f"({n} pattern copies). Not a layout we can decode (only Xerox DocuColor "
+                       "is public), but the pattern still identifies the printer and can be "
+                       "matched against other prints. Enhanced view extracted.", source)
+            report.fact("tracking", "printer tracking dots (printer serial + print time)")
         report.artifact("tracking_dots_enhanced.png", vision.enhance_dots(arr))
 
 
@@ -395,20 +447,22 @@ class VisualOpts:
     blur_faces: bool = False
     redact_codes: bool = False
     redact_text: bool = False
+    redact_plates: bool = False
     regions: list = field(default_factory=list)  # [(x, y, w, h)]
     desync: bool = False
     remove_dots: bool = True
 
     def any(self):
         return self.blur_faces or self.redact_codes or self.redact_text or self.regions or \
-            self.desync or self.remove_dots
+            self.desync or self.remove_dots or self.redact_plates
 
 
 def apply_visual(img: Image.Image, opts: "VisualOpts", notes: list) -> Image.Image:
     """Pixel-level sanitizing. Operates on an already-rotated RGB(A) PIL image."""
     from . import vision
     if not vision.available():
-        if opts.blur_faces or opts.redact_codes or opts.redact_text or opts.regions or opts.desync:
+        if opts.blur_faces or opts.redact_codes or opts.redact_text or opts.regions or \
+                opts.desync or opts.redact_plates:
             raise RuntimeError("visual sanitizing needs: pip install 'unredact-tools[vision]'")
         return img
     alpha = img.getchannel("A") if img.mode in ("RGBA", "LA") else None
@@ -424,6 +478,11 @@ def apply_visual(img: Image.Image, opts: "VisualOpts", notes: list) -> Image.Ima
         boxes += found
         if found:
             notes.append(f"redacted {len(found)} sensitive text item(s)")
+    if opts.redact_plates:
+        found = vision.detect_plates(arr)
+        boxes += found
+        if found:
+            notes.append(f"redacted {len(found)} license plate(s)")
     for (x, y, w, h) in opts.regions:
         boxes.append(vision.Box(x, y, w, h))
     if opts.regions:

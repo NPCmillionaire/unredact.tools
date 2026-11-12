@@ -346,6 +346,146 @@ def _lattice(strength):
     return None
 
 
+# ============================================================== license plates
+PLATE_RX = re.compile(r"^(?=.*\d)(?=.*[A-Z])[A-Z0-9]{4,8}$")
+
+
+def _ocr_plate(crop) -> tuple[str, float]:
+    """OCR a single candidate region as one line of plate characters."""
+    if not HAVE_OCR:
+        return "", 0.0
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
+    scale = 110 / max(1, g.shape[0])
+    g = cv2.resize(g, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    g = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    if (g < 128).mean() > 0.5:  # light characters on a dark plate: invert
+        g = 255 - g
+    g = cv2.copyMakeBorder(g, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+    ok, png = cv2.imencode(".png", g)
+    try:
+        res = subprocess.run(
+            # no char whitelist: with one, tesseract 5 reports conf 0 for every word
+            ["tesseract", "stdin", "stdout", "--psm", "7", "tsv"],
+            input=png.tobytes(), capture_output=True, timeout=30)
+    except (subprocess.TimeoutExpired, OSError):
+        return "", 0.0
+    words, confs = [], []
+    for row in res.stdout.decode("utf-8", "replace").splitlines()[1:]:
+        f = row.split("\t")
+        if len(f) >= 12 and f[11].strip() and float(f[10]) > 0:
+            words.append(f[11].strip())
+            confs.append(float(f[10]))
+    text = re.sub(r"[^A-Z0-9]", "", "".join(words).upper())
+    return text, (float(np.mean(confs)) if confs else 0.0)
+
+
+def _plate_interior(crop):
+    """Tighten a candidate to the bright plate body inside it (drops the car paint around)."""
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    b = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    b = cv2.morphologyEx(b, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
+    n, _, st, _ = cv2.connectedComponentsWithStats(b)
+    if n < 2:
+        return crop
+    i = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+    x, y, w, h, a = st[i]
+    if a < 0.25 * crop.shape[0] * crop.shape[1] or w < 2 * h * 0.8:
+        return crop
+    bx, by = max(2, int(w * 0.03)), max(2, int(h * 0.06))
+    inner = crop[y + by:y + h - by, x + bx:x + w - bx]
+    return inner if inner.size else crop
+
+
+def _char_blobs(crop) -> list:
+    """Character-sized dark blobs inside a candidate, as (x, y, w, h)."""
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    b = cv2.threshold(g, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    if (b > 0).mean() > 0.5:
+        b = 255 - b
+    n, _, st, _ = cv2.connectedComponentsWithStats(b)
+    h = crop.shape[0]
+    return [tuple(int(v) for v in st[i, :4]) for i in range(1, n)
+            if 0.2 * h <= st[i, cv2.CC_STAT_HEIGHT] <= 0.95 * h
+            and 0.12 * st[i, cv2.CC_STAT_HEIGHT] <= st[i, cv2.CC_STAT_WIDTH]
+            <= 0.9 * st[i, cv2.CC_STAT_HEIGHT]  # not plate-border slivers, not wide bars
+            and st[i, cv2.CC_STAT_AREA] >= 0.006 * h * h]
+
+
+def _main_text_band(crop, blobs):
+    """Keep only the row of the tallest characters (drops state names, slogans, stickers)."""
+    tallest = max(b[3] for b in blobs)
+    main = [b for b in blobs if b[3] >= 0.7 * tallest]
+    x0 = max(0, min(b[0] for b in main) - 6)
+    y0 = max(0, min(b[1] for b in main) - 6)
+    x1 = min(crop.shape[1], max(b[0] + b[2] for b in main) + 6)
+    y1 = min(crop.shape[0], max(b[1] + b[3] for b in main) + 6)
+    return crop[y0:y1, x0:x1], len(main)
+
+
+def detect_plates(img, max_candidates=14) -> list[Box]:
+    """Classical plate localisation (dark glyph clusters with plate proportions) + OCR check.
+
+    Candidates come from a morphological black-hat on the grey image: tight horizontal
+    runs of dark characters on a light background, closed into plate-shaped blobs. Each
+    candidate must hold 4-9 character-sized blobs and OCR to a plate-like string (letters
+    and digits, 4-8 characters) before it is reported.
+    """
+    H, W = img.shape[:2]
+    scale = min(1.0, 1600 / max(H, W))
+    small = cv2.resize(img, None, fx=scale, fy=scale) if scale < 1 else img
+    g = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    cands = []
+    for kw in (13, 25):  # two scales of character spacing
+        k = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, max(3, kw // 3)))
+        bh = cv2.morphologyEx(g, cv2.MORPH_BLACKHAT, k)
+        gx = np.absolute(cv2.Sobel(bh, cv2.CV_32F, 1, 0, ksize=-1))
+        gx = cv2.normalize(gx, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        gx = cv2.GaussianBlur(gx, (5, 5), 0)
+        gx = cv2.morphologyEx(gx, cv2.MORPH_CLOSE, k)
+        th = cv2.threshold(gx, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        th = cv2.dilate(cv2.erode(th, None, iterations=2), None, iterations=2)
+        cnts, _ = cv2.findContours(th, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cnts:
+            x, y, w, h = cv2.boundingRect(c)
+            ar = w / max(h, 1)
+            if 1.8 <= ar <= 7.5 and h >= 12 and w * h <= 0.15 * g.size:
+                cands.append((x, y, w, h))
+    # dedupe overlapping candidates, biggest first
+    cands.sort(key=lambda b: -b[2] * b[3])
+    kept = []
+    for b in cands:
+        if all(_iou(b, k) < 0.4 for k in kept):
+            kept.append(b)
+    out = []
+    for x, y, w, h in kept[:max_candidates]:
+        px, py = int(w * 0.08), int(h * 0.25)
+        x0, y0 = max(0, x - px), max(0, y - py)
+        x1, y1 = min(g.shape[1], x + w + px), min(g.shape[0], y + h + py)
+        crop = _plate_interior(small[y0:y1, x0:x1])
+        blobs = _char_blobs(crop)
+        if len(blobs) < 4:
+            continue
+        band, n_main = _main_text_band(crop, blobs)
+        if not 4 <= n_main <= 10:
+            continue
+        text, conf = _ocr_plate(band)
+        if PLATE_RX.match(text) and conf >= 40:
+            inv = 1 / scale
+            out.append(Box(int(x0 * inv), int(y0 * inv), int((x1 - x0) * inv),
+                           int((y1 - y0) * inv), "license plate", text, "plate",
+                           {"confidence": conf}))
+    return out
+
+
+def _iou(a, b):
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    ix = max(0, min(ax + aw, bx + bw) - max(ax, bx))
+    iy = max(0, min(ay + ah, by + bh) - max(ay, by))
+    inter = ix * iy
+    return inter / float(aw * ah + bw * bh - inter + 1e-9)
+
+
 # ============================================================ printer dots (MIC)
 def yellow_dot_mask(img) -> "np.ndarray":
     """Faint yellow specks on (near-)white paper: high R and G, noticeably lower B."""

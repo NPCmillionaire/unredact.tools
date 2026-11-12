@@ -62,12 +62,23 @@ def print_report(r, color=True, show_all=False):
 
 def cmd_scan(args):
     color = color_enabled(sys.stdout, args.no_color)
+    if args.scene == "anthropic":
+        print(_c("note: --scene anthropic uploads each image (re-encoded, metadata stripped) to "
+                 "the Anthropic API. Use --scene ollama to keep it local.", "\033[33m", color),
+              file=sys.stderr)
     reports = []
     for p in args.files:
         if not os.path.isfile(p):
             print(f"skip: {p} is not a file", file=sys.stderr)
             continue
         r = scan(p, visual=not args.fast, ocr=not (args.fast or args.no_ocr))
+        if args.scene and r.filetype.startswith("image/"):
+            from . import scene
+            try:
+                data = scene.analyze(open(p, "rb").read(), args.scene, args.scene_model)
+                scene.add_findings(r, data, f"scene AI ({data['model']})")
+            except scene.SceneError as e:
+                r.errors.append(f"scene analysis: {e}")
         reports.append(r)
         if args.extract and r.artifacts:
             d = os.path.join(args.extract, os.path.basename(p) + "_artifacts")
@@ -89,7 +100,9 @@ HINTS = {  # remaining finding title prefix -> flag that fixes it
     "Boarding pass": "--redact-codes",
     "QR Code": "--redact-codes",
     "face(s) visible": "--blur-faces",
+    "License plate": "--redact-plates",
     "Pixelated region": "--redact-region X,Y,W,H",
+    "Scene:": "--redact-region X,Y,W,H",
 }
 
 
@@ -107,6 +120,7 @@ def _visual_opts(args):
         blur_faces=args.blur_faces or args.visual,
         redact_codes=args.redact_codes or args.visual,
         redact_text=args.redact_text or args.visual,
+        redact_plates=args.redact_plates or args.visual,
         regions=args.redact_region or [],
         desync=args.desync,
         remove_dots=not args.keep_dots,
@@ -214,7 +228,7 @@ class Parser(argparse.ArgumentParser):
                 return (c("  $ ", DIM, on) + c(cmd, "\033[36m", on) +
                         (c("  #" + note, DIM, on) if note else ""))
             text = re.sub(r"(?m)^(  \$ )(.*)$", example, text)
-            text = re.sub(r"(?m)^(  )(scan|sanitize|camera-id|tip)(\s)", lambda m: m.group(1) +
+            text = re.sub(r"(?m)^(  )(scan|sanitize|camera-id|sun|tip)(\s)", lambda m: m.group(1) +
                           c(m.group(2), BOLD, on) + m.group(3), text)
         file.write(text)
 
@@ -226,6 +240,7 @@ commands:
   scan       show what metadata and hidden content a file leaks
   sanitize   write a scrubbed copy, then re-scan it to prove it's clean
   camera-id  link photos to the camera that took them (sensor fingerprint)
+  sun        geolocate a photo from its timestamp and a shadow
   tip        print a random OPSEC tip (--all for the full list)
 
 run `unredact.tools <command> --help` for that command's options."""
@@ -247,8 +262,10 @@ SCAN_DESC = """\
 Show what a file gives away: GPS, device serials, authors, usernames, failed
 redactions, earlier PDF versions, deleted tracked changes, hidden text, comments,
 embedded files, and invisible watermarks. Images are also checked pixel by pixel:
-readable sensitive text (OCR), QR codes and boarding passes, faces, reversible
-pixelation, and printer tracking dots. Nothing is uploaded or modified."""
+readable sensitive text (OCR), QR codes and boarding passes, license plates, faces,
+reversible pixelation, and printer tracking dots (decoded when possible). Add --scene
+for an AI review of reflections, landmarks and regional clues. Nothing is uploaded
+unless you choose --scene anthropic. Files are never modified."""
 
 SCAN_EPILOG = """\
 examples:
@@ -257,6 +274,7 @@ examples:
   $ unredact.tools scan memo.docx --extract ./loot
   $ unredact.tools scan filing.pdf --json | jq '.[0].counts'
   $ unredact.tools scan huge_folder/* --fast       # metadata only, no OCR/vision
+  $ unredact.tools scan selfie.jpg --scene          # AI scene review via local Ollama
 
 exit codes:
   0   no high or critical leaks
@@ -278,6 +296,7 @@ examples:
   $ unredact.tools sanitize report.pdf -o public.pdf --pdf-mode text
   $ unredact.tools sanitize screenshot.png --redact-text --redact-codes
   $ unredact.tools sanitize party.jpg --blur-faces --desync
+  $ unredact.tools sanitize driveway.jpg --redact-plates
 
 exit codes:
   0   every output re-scanned clean
@@ -306,6 +325,126 @@ examples:
 notes:
   photos must be full-resolution originals in the same orientation; resized or
   cropped images won't match. more reference photos = a stronger fingerprint."""
+
+
+SUN_DESC = """\
+Shadow geolocation. A photo's timestamp plus the angle of a shadow in it narrows
+down where on Earth it was taken, with no GPS needed. Use it to see how much a
+photo's time and shadows give away, or to check a location someone claims."""
+
+SUN_EPILOG = """\
+measuring the shadow:
+  pick something vertical (a pole, a person, a door frame) and its shadow on flat ground.
+  --shadow-ratio HEIGHT:LENGTH   e.g. 2:3.5 for a 2 m pole with a 3.5 m shadow
+  --shadow-bearing DEG           compass direction the shadow points (0=N, 90=E)
+
+examples:
+  $ unredact.tools sun --photo beach.jpg --shadow-ratio 1:1.8
+  $ unredact.tools sun --time 2026-11-10T14:30-05:00 --shadow-ratio 2:3.5 --shadow-bearing 40
+  $ unredact.tools sun --time 2026-11-10T14:30-05:00 --where 41.10,-80.65   # what the sun did there
+  $ unredact.tools sun --photo x.jpg --elevation 31 --geojson places.geojson"""
+
+
+def _parse_time(text):
+    from datetime import datetime as _dt
+    t = text.strip().replace(" ", "T", 1)
+    if t.endswith("Z"):
+        t = t[:-1] + "+00:00"
+    d = _dt.fromisoformat(t)
+    if d.tzinfo is None:
+        raise SystemExit("time needs a UTC offset, e.g. 2026-11-10T14:30-05:00 or ...Z")
+    return d
+
+
+def _photo_time(path):
+    from datetime import datetime as _dt, timedelta, timezone as _tz
+    from PIL import ExifTags, Image as _I
+    ex = _I.open(path).getexif()
+    sub = ex.get_ifd(ExifTags.IFD.Exif)
+    raw = sub.get(0x9003) or ex.get(0x0132)
+    off = sub.get(0x9011) or sub.get(0x9010)
+    if not raw:
+        raise SystemExit(f"{path}: no capture time in EXIF; pass --time instead")
+    d = _dt.strptime(str(raw).strip("\x00"), "%Y:%m:%d %H:%M:%S")
+    if not off:
+        raise SystemExit(f"{path}: capture time has no timezone ({raw}); pass --time "
+                         "with an offset instead")
+    sign = -1 if str(off).startswith("-") else 1
+    hh, mm = str(off).strip("+-\x00").split(":")[:2]
+    return d.replace(tzinfo=_tz(sign * timedelta(hours=int(hh), minutes=int(mm))))
+
+
+def cmd_sun(args):
+    import json as _json
+    import numpy as np
+    from . import sun as S
+    color = color_enabled(sys.stdout, args.no_color)
+    when = _photo_time(args.photo) if args.photo else _parse_time(args.time) if args.time else None
+    if when is None:
+        sys.exit("give --time or --photo")
+    from datetime import timezone as _tz
+    print(_c(f"  time: {when.isoformat()}  (UTC {when.astimezone(_tz.utc):%Y-%m-%d %H:%M})", DIM, color))
+    if args.where:
+        lat, lon = (float(v) for v in args.where.split(","))
+        el, az = S.solar_position(when, lat, lon)
+        if el <= 0:
+            print(f"  the sun was below the horizon at {lat},{lon} ({el:.1f}°)")
+            return 0
+        import math as _m
+        ratio = 1 / _m.tan(_m.radians(el))
+        print(f"  sun at {lat},{lon}: elevation {el:.1f}°, azimuth {az:.0f}° ({S.compass(az)})")
+        print(f"  shadows point {((az + 180) % 360):.0f}° ({S.compass(az + 180)}) and are "
+              f"{ratio:.2f}x the object's height")
+        return 0
+    if args.shadow_ratio:
+        try:
+            h, l = (float(v) for v in args.shadow_ratio.replace("/", ":").split(":"))
+        except ValueError:
+            sys.exit("--shadow-ratio expects HEIGHT:LENGTH, e.g. 2:3.5")
+        elev = S.elevation_from_shadow(h, l)
+    elif args.elevation is not None:
+        elev = args.elevation
+    else:
+        sys.exit("give --shadow-ratio HEIGHT:LENGTH, --elevation DEG, or --where LAT,LON")
+    print(f"  sun elevation from the shadow: {_c(f'{elev:.1f}°', BOLD, color)}")
+    pts, err = S.locate(when, elev, args.shadow_bearing, elev_tol=args.tolerance)
+    if not len(pts):
+        print(_c("  no place on Earth matches - check the time zone and the measurement", "\033[33m", color))
+        return 1
+    ss = S.subsolar_point(when)
+    radius_km = (90 - elev) * 111.2
+    if args.shadow_bearing is None:
+        print(f"  possible locations: a circle {radius_km:,.0f} km from the point under the sun "
+              f"({ss[0]:.1f}, {ss[1]:.1f}), about ±{args.tolerance * 111:.0f} km wide")
+        off = when.utcoffset().total_seconds() / 3600
+        keep = S.tz_band(pts, off)
+        if keep.any():
+            band = pts[keep]
+            band = band[np.argsort(band[:, 0])]
+            cuts = np.nonzero(np.diff(band[:, 0]) > 2)[0] + 1
+            print(f"  inside the photo's UTC{off:+g} time-zone band, it lies on:")
+            for seg in np.split(band, cuts)[:4]:
+                print(f"    - latitude {seg[:, 0].min():.1f} to {seg[:, 0].max():.1f}, "
+                      f"longitude {seg[:, 1].min():.1f} to {seg[:, 1].max():.1f}")
+        print(_c("  add --shadow-bearing to narrow this to a single area", "\033[36m", color))
+    else:
+        best = pts[0]
+        dist = np.hypot(pts[:, 0] - best[0], (pts[:, 1] - best[1]) * np.cos(np.radians(best[0])))
+        near = pts[(dist < 10) & (err <= err[0] + 1.0)]
+        dlat = float(np.ptp(near[:, 0])) * 111
+        dlon = float(np.ptp(near[:, 1])) * 111 * np.cos(np.radians(best[0]))
+        print(f"  best match: {_c(f'{best[0]:.2f}, {best[1]:.2f}', BOLD, color)}  "
+              f"(candidate area ~{max(dlat, 55):,.0f} x {max(dlon, 55):,.0f} km)")
+        print(f"  map: https://www.google.com/maps?q={best[0]:.3f},{best[1]:.3f}")
+        others = [p for p in pts[1:] if np.hypot(p[0] - best[0], p[1] - best[1]) > 15]
+        if others:
+            o = others[0]
+            print(f"  another region also fits: {o[0]:.1f}, {o[1]:.1f}")
+    if args.geojson:
+        with open(args.geojson, "w") as f:
+            _json.dump(S.to_geojson(pts, err), f)
+        print(_c(f"  wrote {len(pts)} candidate points -> {args.geojson} (open in geojson.io)", DIM, color))
+    return 0
 
 
 def cmd_tip(args):
@@ -346,6 +485,11 @@ def _main(argv=None):
     s.add_argument("--fast", action="store_true",
                    help="metadata only: skip visual checks (OCR, codes, faces, dots)")
     s.add_argument("--no-ocr", action="store_true", help="skip OCR of text inside images")
+    s.add_argument("--scene", nargs="?", const="ollama", choices=["ollama", "anthropic"],
+                   help="AI scene review: reflections, landmarks, regional clues, shadows "
+                        "(default: local Ollama; 'anthropic' uploads the image)")
+    s.add_argument("--scene-model", metavar="NAME",
+                   help="model override (default qwen3-vl:8b / claude-sonnet-5-5)")
     s.add_argument("--no-color", action="store_true", help="disable colors (NO_COLOR also works)")
     s.set_defaults(fn=cmd_scan)
 
@@ -360,10 +504,11 @@ def _main(argv=None):
                    help="black out QR codes and barcodes (boarding passes!)")
     v.add_argument("--redact-text", action="store_true",
                    help="black out sensitive text found by OCR (emails, phones, SSNs, cards...)")
+    v.add_argument("--redact-plates", action="store_true", help="black out license plates")
     v.add_argument("--redact-region", action="append", type=_region, metavar="X,Y,W,H",
                    help="black out a rectangle (repeatable)")
     v.add_argument("--visual", action="store_true",
-                   help="all of the above detectors: faces + codes + text")
+                   help="all of the above detectors: faces + codes + text + plates")
     v.add_argument("--desync", action="store_true",
                    help="break the camera sensor fingerprint (PRNU) with a tiny resample")
     v.add_argument("--keep-dots", action="store_true",
@@ -377,6 +522,21 @@ def _main(argv=None):
     k.add_argument("-o", "--output", metavar="PATH", help="fingerprint file for build")
     k.add_argument("--no-color", action="store_true", help="disable colors")
     k.set_defaults(fn=cmd_camera)
+
+    g = sub.add_parser("sun", description=SUN_DESC, epilog=SUN_EPILOG)
+    src = g.add_mutually_exclusive_group()
+    src.add_argument("--photo", metavar="FILE", help="read the capture time from a photo's EXIF")
+    src.add_argument("--time", metavar="ISO", help="capture time with UTC offset")
+    g.add_argument("--shadow-ratio", metavar="H:L", help="object height : shadow length")
+    g.add_argument("--elevation", type=float, metavar="DEG", help="sun elevation, if known")
+    g.add_argument("--shadow-bearing", type=float, metavar="DEG",
+                   help="compass direction the shadow points")
+    g.add_argument("--where", metavar="LAT,LON", help="instead: show the sun at this place/time")
+    g.add_argument("--tolerance", type=float, default=1.5, metavar="DEG",
+                   help="elevation measurement tolerance (default 1.5)")
+    g.add_argument("--geojson", metavar="PATH", help="write all candidate points as GeoJSON")
+    g.add_argument("--no-color", action="store_true", help="disable colors")
+    g.set_defaults(fn=cmd_sun)
 
     t = sub.add_parser("tip", description="Print a random OPSEC tip.")
     t.add_argument("--all", action="store_true", help="list every tip")
