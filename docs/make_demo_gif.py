@@ -1,4 +1,4 @@
-"""Render docs/demo.gif from real unredact-file output.
+"""Render docs/demo.gif from real unredact.tools output.
 
 Runs each command under `script` (so the CLI sees a TTY and emits colors), then
 replays it in a fake terminal: types the command, streams the output, pauses on
@@ -30,11 +30,11 @@ BGPAL = {41: (218, 54, 51)}
 
 SCENES = [
     # (command, pause-after-output seconds, pause triggers: {substring: seconds})
-    ("unredact-file --help", 1.2, {"╰": 3.2}),
-    ("unredact-file scan vacation.jpg", 2.2, {"HIDDEN CONTENT": 2.6}),
-    ("unredact-file scan court_filing.pdf", 2.0, {"FAILED REDACTION": 3.0}),
-    ("unredact-file sanitize vacation.jpg court_filing.pdf memo.docx", 2.4, {}),
-    ("unredact-file scan vacation.clean.jpg court_filing.clean.pdf memo.clean.docx", 3.5, {}),
+    ("unredact.tools --help", 1.2, {"╰": 3.2}),
+    ("unredact.tools scan vacation.jpg", 2.2, {"HIDDEN CONTENT": 2.6}),
+    ("unredact.tools scan court_filing.pdf", 2.0, {"FAILED REDACTION": 3.0}),
+    ("unredact.tools sanitize vacation.jpg court_filing.pdf memo.docx", 2.4, {}),
+    ("unredact.tools scan vacation.clean.jpg court_filing.clean.pdf memo.clean.docx", 3.5, {}),
 ]
 
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
@@ -115,7 +115,7 @@ class Term:
         d.rectangle([0, 0, W, BAR], fill=(22, 27, 34))
         for i, c in enumerate([(255, 95, 86), (255, 189, 46), (39, 201, 63)]):
             d.ellipse([14 + i * 22, 11, 26 + i * 22, 23], fill=c)
-        title = "unredact-file — see what your files give away"
+        title = "unredact.tools — see what your files give away"
         d.text(((W - FONT.getlength(title)) / 2, 9), title, font=FONT, fill=(139, 148, 158))
         y = BAR + PAD
         for row in self.lines:

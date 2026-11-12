@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from unredact_file.scanner import sanitize, scan
+from unredact_tools.scanner import sanitize, scan
 
 HERE = Path(__file__).parent
 LEAKY = ["photo.jpg", "ai.png", "filing.pdf", "memo.docx", "budget.xlsx", "deck.pptx",
@@ -45,8 +45,8 @@ def test_docx_tracked_delete_recovered(fx):
 
 
 def test_help_banner_and_tip(capsys):
-    from unredact_file.cli import main
-    from unredact_file.tips import TIPS
+    from unredact_tools.cli import main
+    from unredact_tools.tips import TIPS
     with pytest.raises(SystemExit) as e:
         main([])
     assert e.value.code == 0

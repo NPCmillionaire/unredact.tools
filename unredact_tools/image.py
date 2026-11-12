@@ -331,7 +331,7 @@ def scan_visual(report: Report, img, ocr=True, faces=True, source="pixels"):
     """Run the pixel-level detectors (see vision.py) and add findings."""
     from . import vision
     if not vision.available():
-        report.errors.append("visual checks skipped: pip install 'unredact-file[vision]'")
+        report.errors.append("visual checks skipped: pip install 'unredact-tools[vision]'")
         return
     try:
         img.seek(0)
@@ -409,7 +409,7 @@ def apply_visual(img: Image.Image, opts: "VisualOpts", notes: list) -> Image.Ima
     from . import vision
     if not vision.available():
         if opts.blur_faces or opts.redact_codes or opts.redact_text or opts.regions or opts.desync:
-            raise RuntimeError("visual sanitizing needs: pip install 'unredact-file[vision]'")
+            raise RuntimeError("visual sanitizing needs: pip install 'unredact-tools[vision]'")
         return img
     alpha = img.getchannel("A") if img.mode in ("RGBA", "LA") else None
     arr = vision.load(img.convert("RGB"))

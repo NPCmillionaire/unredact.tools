@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🕵️ unredact-file
+# 🕵️ unredact.tools
 
 ### See what your files give away before someone else does. Then scrub it.
 
@@ -15,7 +15,7 @@
 
 <br>
 
-<img width="820" alt="unredact-file demo: scanning a photo and a court filing, catching a failed redaction, sanitizing, and re-scanning clean" src="docs/demo.gif" />
+<img width="820" alt="unredact.tools demo: scanning a photo and a court filing, catching a failed redaction, sanitizing, and re-scanning clean" src="docs/demo.gif" />
 
 </div>
 
@@ -23,7 +23,7 @@
 
 Every photo, PDF, and Office document carries more than what's on screen: **GPS coordinates, camera serial numbers, usernames, earlier drafts, deleted text, comments,** and **invisible watermarks** that identify exactly whose copy leaked.
 
-`unredact-file` answers one question: ***if I send this, what does the person receiving it learn about me?*** Then it gives you a copy that answers *"nothing."*
+`unredact.tools` answers one question: ***if I send this, what does the person receiving it learn about me?*** Then it gives you a copy that answers *"nothing."*
 
 <table>
 <tr>
@@ -33,7 +33,7 @@ Every photo, PDF, and Office document carries more than what's on screen: **GPS 
 Shows **what's leaking** and translates it into a plain-English summary: **WHERE · WHO · DEVICE · WHEN · SOFTWARE · ORG · HIDDEN · TRACKING**.
 
 ```console
-$ unredact-file scan vacation.jpg
+$ unredact.tools scan vacation.jpg
   2 critical  7 high  8 medium  3 low
   WHERE   GPS 41.0975, -80.6534 → maps link
   DEVICE  iPhone 15 Pro · serial F2LXK9ABC123
@@ -47,7 +47,7 @@ $ unredact-file scan vacation.jpg
 Rebuilds a **clean copy** from visible content only, then **re-scans it to prove** nothing survived.
 
 ```console
-$ unredact-file sanitize memo.docx
+$ unredact.tools sanitize memo.docx
 + memo.docx -> memo.clean.docx
   leaks: 39 before -> 0 after
 ```
@@ -69,7 +69,7 @@ People have been caught by metadata for as long as files have carried it.
 | **2019** | Paul Manafort's lawyers file a "redacted" PDF | Black boxes drawn **over** text that was still there; reporters copied it out within minutes |
 | **Always** | Everyday Office and PDF files | Tracked changes, comments, author usernames, and every incrementally saved earlier version |
 
-Good tools exist (ExifTool, mat2, Dangerzone), but each one does a single job, and none of them **explains the risk**. `unredact-file` combines detection, explanation, and sanitizing in one command.
+Good tools exist (ExifTool, mat2, Dangerzone), but each one does a single job, and none of them **explains the risk**. `unredact.tools` combines detection, explanation, and sanitizing in one command.
 
 ---
 
@@ -101,12 +101,12 @@ pip install -e .
 ### Scan
 
 ```bash
-unredact-file scan photo.jpg                     # human-readable report
-unredact-file scan *.pdf *.docx                  # many files at once
-unredact-file scan memo.docx --extract ./loot    # save recovered artifacts
-unredact-file scan filing.pdf --json             # machine-readable
-unredact-file scan photo.jpg --all               # include info-level findings
-unredact-file scan big_folder/* --fast           # metadata only (skip OCR / vision)
+unredact.tools scan photo.jpg                     # human-readable report
+unredact.tools scan *.pdf *.docx                  # many files at once
+unredact.tools scan memo.docx --extract ./loot    # save recovered artifacts
+unredact.tools scan filing.pdf --json             # machine-readable
+unredact.tools scan photo.jpg --all               # include info-level findings
+unredact.tools scan big_folder/* --fast           # metadata only (skip OCR / vision)
 ```
 
 `--extract` writes out everything the scan recovered (embedded thumbnails, earlier PDF revisions, attachments, motion-photo video, embedded documents) to `./loot/<file>_artifacts/`.
@@ -114,22 +114,22 @@ unredact-file scan big_folder/* --fast           # metadata only (skip OCR / vis
 ### Sanitize
 
 ```bash
-unredact-file sanitize photo.jpg                   # → photo.clean.jpg
-unredact-file sanitize a.pdf b.docx c.mp4          # batch
-unredact-file sanitize report.pdf -o public.pdf    # custom output path
-unredact-file sanitize report.pdf --pdf-mode text  # keep selectable text
+unredact.tools sanitize photo.jpg                   # → photo.clean.jpg
+unredact.tools sanitize a.pdf b.docx c.mp4          # batch
+unredact.tools sanitize report.pdf -o public.pdf    # custom output path
+unredact.tools sanitize report.pdf --pdf-mode text  # keep selectable text
 
 # visual redaction (images and raster PDFs)
-unredact-file sanitize screenshot.png --redact-text --redact-codes
-unredact-file sanitize party.jpg --blur-faces
-unredact-file sanitize photo.jpg --redact-region 120,40,300,60
-unredact-file sanitize screenshot.png --visual      # faces + codes + text
+unredact.tools sanitize screenshot.png --redact-text --redact-codes
+unredact.tools sanitize party.jpg --blur-faces
+unredact.tools sanitize photo.jpg --redact-region 120,40,300,60
+unredact.tools sanitize screenshot.png --visual      # faces + codes + text
 ```
 
 Printer tracking dots are removed automatically. When a leak survives, `sanitize` tells you which flag fixes it:
 
 ```console
-$ unredact-file sanitize screenshot.png
+$ unredact.tools sanitize screenshot.png
   leaks: 9 before -> 9 after
   remaining [CRITICAL] Boarding pass barcode (Aztec): DOE, JANE - booking ABC123 ...
   hint: re-run with --redact-codes --redact-text
@@ -140,10 +140,10 @@ $ unredact-file sanitize screenshot.png
 Every camera sensor leaves a unique, fixed noise pattern (PRNU) in its photos. It survives metadata stripping and JPEG compression, and it can link an "anonymous" photo back to your phone. Check whether yours can be linked, then break the link:
 
 ```bash
-unredact-file camera-id build my_phone/*.jpg -o myphone.npz     # fingerprint from 10-30 photos
-unredact-file camera-id match myphone.npz anonymous_post.jpg     # z-score vs. chance
-unredact-file camera-id compare known.jpg suspect1.jpg           # quick 1-to-1 check
-unredact-file sanitize anonymous_post.jpg --desync               # imperceptible resample + crop
+unredact.tools camera-id build my_phone/*.jpg -o myphone.npz     # fingerprint from 10-30 photos
+unredact.tools camera-id match myphone.npz anonymous_post.jpg     # z-score vs. chance
+unredact.tools camera-id compare known.jpg suspect1.jpg           # quick 1-to-1 check
+unredact.tools sanitize anonymous_post.jpg --desync               # imperceptible resample + crop
 ```
 
 ```console
@@ -158,9 +158,9 @@ unredact-file sanitize anonymous_post.jpg --desync               # imperceptible
 ### Help & OPSEC tips
 
 ```bash
-unredact-file --help        # banner, commands, examples, plus a rotating OPSEC tip
-unredact-file tip           # one random tip
-unredact-file tip --all     # all 40
+unredact.tools --help        # banner, commands, examples, plus a rotating OPSEC tip
+unredact.tools tip           # one random tip
+unredact.tools tip --all     # all 40
 ```
 
 Colors follow your terminal: they're off automatically when piped, and `NO_COLOR` / `--no-color` are respected.
@@ -171,7 +171,7 @@ The exit code is `0` when nothing high or critical is found and `2` when somethi
 
 ```yaml
 - run: pip install git+https://github.com/NPCmillionaire/unredact.tools
-- run: unredact-file scan public/**/*.{pdf,jpg,png,docx} --no-color
+- run: unredact.tools scan public/**/*.{pdf,jpg,png,docx} --no-color
 ```
 
 ---
@@ -332,7 +332,7 @@ flowchart LR
 <summary><b>Module layout</b></summary>
 
 ```
-unredact_file/
+unredact_tools/
 ├── cli.py        scan / sanitize commands, report rendering, exit codes
 ├── scanner.py    magic-byte type detection → dispatch
 ├── model.py      Report · Finding · Artifact · "facts" for the summary
@@ -406,7 +406,7 @@ To see it in action:
 
 ```bash
 python tests/make_fixtures.py ./demo
-unredact-file scan ./demo/* --extract ./demo/loot
+unredact.tools scan ./demo/* --extract ./demo/loot
 ```
 
 ---

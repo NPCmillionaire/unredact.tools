@@ -1,4 +1,4 @@
-"""Rotating OPSEC advice shown under the banner (and via `unredact-file tip`)."""
+"""Rotating OPSEC advice shown under the banner (and via `unredact.tools tip`)."""
 from __future__ import annotations
 
 import os

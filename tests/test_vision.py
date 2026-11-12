@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-vision = pytest.importorskip("unredact_file.vision")
+vision = pytest.importorskip("unredact_tools.vision")
 if not vision.available():
     pytest.skip("vision extra not installed", allow_module_level=True)
 
-from unredact_file.image import VisualOpts  # noqa: E402
-from unredact_file.scanner import sanitize, scan  # noqa: E402
+from unredact_tools.image import VisualOpts  # noqa: E402
+from unredact_tools.scanner import sanitize, scan  # noqa: E402
 
 HERE = Path(__file__).parent
 needs_ocr = pytest.mark.skipif(not shutil.which("tesseract"), reason="tesseract not installed")

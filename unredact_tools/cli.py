@@ -1,8 +1,8 @@
-"""unredact-file: see what a file leaks, then scrub it.
+"""unredact.tools: see what a file leaks, then scrub it.
 
-  unredact-file scan photo.jpg report.pdf [--json] [--extract DIR] [--all]
-  unredact-file sanitize photo.jpg [-o out.jpg] [--pdf-mode raster|text]
-  unredact-file tip [--all]
+  unredact.tools scan photo.jpg report.pdf [--json] [--extract DIR] [--all]
+  unredact.tools sanitize photo.jpg [-o out.jpg] [--pdf-mode raster|text]
+  unredact.tools tip [--all]
 """
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ def cmd_camera(args):
     from PIL import Image as _I  # noqa: F401  (ensures pillow plugins load)
     from . import vision
     if not vision.available():
-        sys.exit("camera-id needs: pip install 'unredact-file[vision]'")
+        sys.exit("camera-id needs: pip install 'unredact-tools[vision]'")
     import numpy as np
     color = color_enabled(sys.stdout, args.no_color)
     if args.action == "build":
@@ -228,15 +228,15 @@ commands:
   camera-id  link photos to the camera that took them (sensor fingerprint)
   tip        print a random OPSEC tip (--all for the full list)
 
-run `unredact-file <command> --help` for that command's options."""
+run `unredact.tools <command> --help` for that command's options."""
 
 MAIN_EPILOG = """\
 examples:
-  $ unredact-file scan vacation.jpg
-  $ unredact-file scan *.pdf *.docx --extract ./loot
-  $ unredact-file sanitize memo.docx court_filing.pdf
-  $ unredact-file sanitize screenshot.png --visual
-  $ unredact-file camera-id compare known.jpg anonymous.jpg
+  $ unredact.tools scan vacation.jpg
+  $ unredact.tools scan *.pdf *.docx --extract ./loot
+  $ unredact.tools sanitize memo.docx court_filing.pdf
+  $ unredact.tools sanitize screenshot.png --visual
+  $ unredact.tools camera-id compare known.jpg anonymous.jpg
 
 supports:
   images (JPEG PNG WebP TIFF HEIC) · PDF · DOCX XLSX PPTX · audio/video (ffmpeg) · text
@@ -252,11 +252,11 @@ pixelation, and printer tracking dots. Nothing is uploaded or modified."""
 
 SCAN_EPILOG = """\
 examples:
-  $ unredact-file scan photo.jpg
-  $ unredact-file scan *.pdf *.docx
-  $ unredact-file scan memo.docx --extract ./loot
-  $ unredact-file scan filing.pdf --json | jq '.[0].counts'
-  $ unredact-file scan huge_folder/* --fast       # metadata only, no OCR/vision
+  $ unredact.tools scan photo.jpg
+  $ unredact.tools scan *.pdf *.docx
+  $ unredact.tools scan memo.docx --extract ./loot
+  $ unredact.tools scan filing.pdf --json | jq '.[0].counts'
+  $ unredact.tools scan huge_folder/* --fast       # metadata only, no OCR/vision
 
 exit codes:
   0   no high or critical leaks
@@ -273,11 +273,11 @@ pdf modes:
   text    keeps selectable text; burns in real redactions, scrubs everything else
 
 examples:
-  $ unredact-file sanitize photo.jpg              # -> photo.clean.jpg
-  $ unredact-file sanitize a.pdf b.docx c.mp4
-  $ unredact-file sanitize report.pdf -o public.pdf --pdf-mode text
-  $ unredact-file sanitize screenshot.png --redact-text --redact-codes
-  $ unredact-file sanitize party.jpg --blur-faces --desync
+  $ unredact.tools sanitize photo.jpg              # -> photo.clean.jpg
+  $ unredact.tools sanitize a.pdf b.docx c.mp4
+  $ unredact.tools sanitize report.pdf -o public.pdf --pdf-mode text
+  $ unredact.tools sanitize screenshot.png --redact-text --redact-codes
+  $ unredact.tools sanitize party.jpg --blur-faces --desync
 
 exit codes:
   0   every output re-scanned clean
@@ -298,10 +298,10 @@ actions:
   compare   quick check: use the first photo as the reference, test the rest
 
 examples:
-  $ unredact-file camera-id build my_phone/*.jpg -o myphone.npz
-  $ unredact-file camera-id match myphone.npz anonymous_post.jpg
-  $ unredact-file camera-id compare known.jpg suspect1.jpg suspect2.jpg
-  $ unredact-file sanitize anonymous_post.jpg --desync   # then match again
+  $ unredact.tools camera-id build my_phone/*.jpg -o myphone.npz
+  $ unredact.tools camera-id match myphone.npz anonymous_post.jpg
+  $ unredact.tools camera-id compare known.jpg suspect1.jpg suspect2.jpg
+  $ unredact.tools sanitize anonymous_post.jpg --desync   # then match again
 
 notes:
   photos must be full-resolution originals in the same orientation; resized or
@@ -323,7 +323,7 @@ def cmd_tip(args):
 def main(argv=None):
     try:
         _main(argv)
-    except BrokenPipeError:  # e.g. `unredact-file scan x | head`
+    except BrokenPipeError:  # e.g. `unredact.tools scan x | head`
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(0)
     except KeyboardInterrupt:
@@ -331,10 +331,10 @@ def main(argv=None):
 
 
 def _main(argv=None):
-    ap = Parser(prog="unredact-file", show_banner=True, description=MAIN_DESC,
+    ap = Parser(prog="unredact.tools", show_banner=True, description=MAIN_DESC,
                 epilog=MAIN_EPILOG, usage="%(prog)s <command> [options] files...")
-    ap.add_argument("-v", "--version", action="version", version=f"unredact-file {__version__}")
-    sub = ap.add_subparsers(dest="cmd", metavar="", parser_class=Parser, prog="unredact-file")
+    ap.add_argument("-v", "--version", action="version", version=f"unredact.tools {__version__}")
+    sub = ap.add_subparsers(dest="cmd", metavar="", parser_class=Parser, prog="unredact.tools")
 
     s = sub.add_parser("scan", description=SCAN_DESC, epilog=SCAN_EPILOG)
     s.add_argument("files", nargs="+", metavar="FILE", help="file(s) to inspect")

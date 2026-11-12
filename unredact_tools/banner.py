@@ -64,7 +64,7 @@ def banner(on: bool, tip: str | None = None) -> str:
     lines = [""]
     for row in logo:
         lines.append("  " + _paint_logo(row, on))
-    tag = " file "
+    tag = " .tools "
     ver = f"v{__version__}"
     bar = len(logo[0]) - 4 - len(tag) - 1 - len(ver)
     lines.append("  " + c("█" * 4, "\033[38;5;236m", on) + c(tag, BOLD, on) +
