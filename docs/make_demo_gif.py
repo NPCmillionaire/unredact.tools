@@ -30,6 +30,7 @@ BGPAL = {41: (218, 54, 51)}
 
 SCENES = [
     # (command, pause-after-output seconds, pause triggers: {substring: seconds})
+    ("unredact-file --help", 1.2, {"╰": 3.2}),
     ("unredact-file scan vacation.jpg", 2.2, {"HIDDEN CONTENT": 2.6}),
     ("unredact-file scan court_filing.pdf", 2.0, {"FAILED REDACTION": 3.0}),
     ("unredact-file sanitize vacation.jpg court_filing.pdf memo.docx", 2.4, {}),
@@ -41,9 +42,20 @@ SGR = re.compile(r"\x1b\[([0-9;]*)m")
 
 def run(cmd):
     out = subprocess.run(["script", "-qc", cmd, "/dev/null"], cwd=WORKDIR,
-                         capture_output=True, text=True, env={"COLUMNS": str(COLS), "PATH":
-                                                               subprocess.os.environ["PATH"]}).stdout
+                         capture_output=True, text=True, env={"COLUMNS": str(COLS), "UNREDACT_TIP": "3",
+                              "PATH": subprocess.os.environ["PATH"]}).stdout
     return out.replace("\r", "").rstrip("\n").split("\n")
+
+
+def xterm256(n):
+    if n < 16:
+        return PAL.get(30 + n % 8, FG)
+    if n >= 232:
+        v = 8 + (n - 232) * 10
+        return (v, v, v)
+    n -= 16
+    steps = [0, 95, 135, 175, 215, 255]
+    return (steps[n // 36], steps[(n // 6) % 6], steps[n % 6])
 
 
 def parse(line, style=None):
@@ -53,7 +65,13 @@ def parse(line, style=None):
     for m in SGR.finditer(line):
         cells += [(ch, style) for ch in line[pos:m.start()]]
         fg, bg, bold, dim = style
-        for code in (int(c) if c else 0 for c in m.group(1).split(";")):
+        codes = [int(c) if c else 0 for c in m.group(1).split(";")]
+        while codes:
+            code = codes.pop(0)
+            if code == 38 and codes[:1] == [5]:
+                fg = xterm256(codes[1])
+                codes = codes[2:]
+                continue
             if code == 0:
                 fg, bg, bold, dim = FG, None, False, False
             elif code == 1:
@@ -106,7 +124,15 @@ class Term:
                 if bg:
                     d.rectangle([x, y - 1, x + CW, y + LH - 3], fill=bg)
                 col = tuple(int(c * 0.6 + b * 0.4) for c, b in zip(fg, BG)) if dim else fg
-                d.text((x, y), ch, font=BOLD if bold else FONT, fill=col)
+                top, bot = y - 3, y + LH - 3  # full cell, so block glyphs join up like a real terminal
+                if ch == "█":
+                    d.rectangle([x, top, x + CW - 1, bot - 1], fill=col)
+                elif ch == "▀":
+                    d.rectangle([x, top, x + CW - 1, (top + bot) // 2 - 1], fill=col)
+                elif ch == "▄":
+                    d.rectangle([x, (top + bot) // 2, x + CW - 1, bot - 1], fill=col)
+                else:
+                    d.text((x, y), ch, font=BOLD if bold else FONT, fill=col)
                 x += CW
             y += LH
         if cursor:

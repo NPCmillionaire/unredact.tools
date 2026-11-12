@@ -42,3 +42,17 @@ def test_pdf_text_mode_keeps_visible_text(fx):
 def test_docx_tracked_delete_recovered(fx):
     r = scan(str(fx / "memo.docx"))
     assert any("$4.2M" in f.detail for f in r.findings)
+
+
+def test_help_banner_and_tip(capsys):
+    from unredact_file.cli import main
+    from unredact_file.tips import TIPS
+    with pytest.raises(SystemExit) as e:
+        main([])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    assert "OPSEC TIP" in out and "commands:" in out and "examples:" in out
+    assert any(t.split()[0] in out for t in TIPS)
+    with pytest.raises(SystemExit):
+        main(["tip", "--all", "--no-color"])
+    assert len(capsys.readouterr().out.strip().splitlines()) == len(TIPS)

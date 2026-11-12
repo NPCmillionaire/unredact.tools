@@ -120,6 +120,16 @@ unredact-file sanitize report.pdf --pdf-mode text  # keep selectable text
 > [!NOTE]
 > The original file is **never modified**. Every output is re-scanned automatically, and anything that survived is listed.
 
+### Help & OPSEC tips
+
+```bash
+unredact-file --help        # banner, commands, examples, plus a rotating OPSEC tip
+unredact-file tip           # one random tip
+unredact-file tip --all     # all 40
+```
+
+Colors follow your terminal: they're off automatically when piped, and `NO_COLOR` / `--no-color` are respected.
+
 ### Use it as a CI gate
 
 The exit code is `0` when nothing high or critical is found and `2` when something is, so you can block a release that would publish leaky files:
