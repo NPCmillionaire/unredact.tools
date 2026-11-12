@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unredact-file"
+version = "0.1.0"
+description = "See what metadata and hidden content your files leak, then scrub them."
+requires-python = ">=3.10"
+dependencies = ["pillow>=10.3", "pymupdf>=1.24", "pikepdf>=8", "lxml>=5"]
+
+[project.optional-dependencies]
+heic = ["pillow-heif>=0.16"]
+dev = ["pytest", "piexif", "python-docx>=1.2", "openpyxl", "python-pptx"]
+
+[project.urls]
+Homepage = "https://github.com/NPCmillionaire/unredact.tools"
+
+[project.scripts]
+unredact-file = "unredact_file.cli:main"
+
+[tool.setuptools]
+packages = ["unredact_file"]
