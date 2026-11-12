@@ -88,6 +88,8 @@ pip install -e .
 |---|---|---|
 | HEIC / HEIF | `pip install -e ".[heic]"` | iPhone photos |
 | Audio / video | `brew install ffmpeg` · `apt install ffmpeg` | MP4, MOV, MKV, MP3, FLAC… |
+| **Visual checks** | `pip install -e ".[vision]"` + `brew install tesseract` · `apt install tesseract-ocr` | OCR, QR/barcodes, faces, pixelation, printer dots, camera ID |
+| Everything | `pip install -e ".[all]"` | all of the above |
 | Dev / tests | `pip install -e ".[dev]"` | pytest + leaky-fixture generators |
 
 </details>
@@ -104,6 +106,7 @@ unredact-file scan *.pdf *.docx                  # many files at once
 unredact-file scan memo.docx --extract ./loot    # save recovered artifacts
 unredact-file scan filing.pdf --json             # machine-readable
 unredact-file scan photo.jpg --all               # include info-level findings
+unredact-file scan big_folder/* --fast           # metadata only (skip OCR / vision)
 ```
 
 `--extract` writes out everything the scan recovered (embedded thumbnails, earlier PDF revisions, attachments, motion-photo video, embedded documents) to `./loot/<file>_artifacts/`.
@@ -115,6 +118,38 @@ unredact-file sanitize photo.jpg                   # → photo.clean.jpg
 unredact-file sanitize a.pdf b.docx c.mp4          # batch
 unredact-file sanitize report.pdf -o public.pdf    # custom output path
 unredact-file sanitize report.pdf --pdf-mode text  # keep selectable text
+
+# visual redaction (images and raster PDFs)
+unredact-file sanitize screenshot.png --redact-text --redact-codes
+unredact-file sanitize party.jpg --blur-faces
+unredact-file sanitize photo.jpg --redact-region 120,40,300,60
+unredact-file sanitize screenshot.png --visual      # faces + codes + text
+```
+
+Printer tracking dots are removed automatically. When a leak survives, `sanitize` tells you which flag fixes it:
+
+```console
+$ unredact-file sanitize screenshot.png
+  leaks: 9 before -> 9 after
+  remaining [CRITICAL] Boarding pass barcode (Aztec): DOE, JANE - booking ABC123 ...
+  hint: re-run with --redact-codes --redact-text
+```
+
+### Camera ID (sensor fingerprint)
+
+Every camera sensor leaves a unique, fixed noise pattern (PRNU) in its photos. It survives metadata stripping and JPEG compression, and it can link an "anonymous" photo back to your phone. Check whether yours can be linked, then break the link:
+
+```bash
+unredact-file camera-id build my_phone/*.jpg -o myphone.npz     # fingerprint from 10-30 photos
+unredact-file camera-id match myphone.npz anonymous_post.jpg     # z-score vs. chance
+unredact-file camera-id compare known.jpg suspect1.jpg           # quick 1-to-1 check
+unredact-file sanitize anonymous_post.jpg --desync               # imperceptible resample + crop
+```
+
+```console
+  camA_test.jpg: same camera (strong match)  (z=129.3, corr=0.134)
+  camB_test.jpg: no match  (z=-0.6)
+  camA_test.clean.jpg (--desync): no match  (z=-1.1)
 ```
 
 > [!NOTE]
@@ -157,9 +192,9 @@ Detection is organized into four layers:
 | Layer | Focus | Status |
 |---|---|:---:|
 | **1 · Hard metadata** | Fields stored alongside the content | ✅ shipped |
-| **2 · Broken redactions & hidden content** | Content the author believes is gone or invisible | ✅ shipped · 🗺️ OCR/blur next |
-| **3 · Visual content OSINT** | What the pixels themselves reveal | 🗺️ planned |
-| **4 · Fingerprinting & tracking** | Marks that tie a file to a person, device, or copy | ✅ text · 🗺️ printer dots, PRNU |
+| **2 · Broken redactions & hidden content** | Content the author believes is gone or invisible | ✅ shipped |
+| **3 · Visual content OSINT** | What the pixels themselves reveal | 🚧 codes, faces shipped · scene analysis next |
+| **4 · Fingerprinting & tracking** | Marks that tie a file to a person, device, or copy | ✅ shipped |
 
 <sub>✅ shipped &nbsp;·&nbsp; 🚧 partial &nbsp;·&nbsp; 🗺️ planned</sub>
 
@@ -204,23 +239,23 @@ Detection is organized into four layers:
 | ✅ | **Attachments and embedded objects**, scanned recursively | `EmbeddedFiles` · `word/embeddings/` |
 | ✅ | **Hidden PDF layers**, **extra image frames** (depth/gain maps) | OCG state · MPO frames |
 | ✅ | **Metadata inside embedded images** (a JPEG in a PDF keeps its GPS) | Every embedded image is scanned as its own file |
-| 🗺️ | **Reversible pixelation/blur** | Depix-style block analysis |
-| 🗺️ | **Readable text in screenshots** (tabs, notifications, URLs) | OCR |
+| ✅ | **Reversible pixelation**: mosaics over text that Depix-style attacks can undo | Lattice analysis: block-aligned edges, flat cells, many tones |
+| ✅ | **Sensitive text readable in the image**: SSNs, card numbers (Luhn-checked), API keys, emails, phones, street addresses, IPs, URLs, usernames in paths | Local OCR (Tesseract), word-level boxes so `--redact-text` can black them out |
 
 </details>
 
-<details>
-<summary><h3>Layer 3 · Visual content OSINT <sup>planned</sup></h3></summary>
+<details open>
+<summary><h3>Layer 3 · Visual content OSINT <sup>partial</sup></h3></summary>
 
 *What a human analyst, or a vision model, can work out from the pixels themselves. Stripping metadata doesn't touch this.*
 
 | | Leak |
 |:-:|---|
 | 🗺️ | **Reflections** in glasses, windows, screens, and chrome |
-| 🗺️ | **Readable text in the scene**: street signs, mail labels, badges, license plates, whiteboards, monitors |
+| ✅ | **QR codes and barcodes** (QR, Aztec, PDF417, Data Matrix, 1D), decoded. **Boarding passes** are parsed (IATA BCBP): name, booking reference, flight, route, seat |
+| ✅ | **Faces**: bystanders and children, via OpenCV's YuNet detector, with `--blur-faces` (heavy blur + noise, not a reversible mosaic) |
+| 🚧 | **Readable text in the scene**: OCR catches printed text (labels, screens, documents). Street signs and plates in natural photos are hit-or-miss |
 | 🗺️ | **Geolocation clues**: architecture, vegetation, outlets, road markings, plus **sun angle combined with the timestamp** |
-| 🗺️ | **Bystanders and children**: face detection with one-click blur |
-| 🗺️ | **QR codes and barcodes**, especially boarding passes (name, PNR, frequent-flyer number) |
 | 🗺️ | **Cross-file correlation** through [unredact.me](https://unredact.me): *"this camera serial also appears in 3 photos on your public Flickr"* |
 
 </details>
@@ -239,8 +274,8 @@ Detection is organized into four layers:
 | ✅ | **Word rsid session IDs** that link drafts | `w:rsid*` attributes |
 | ✅ | **Phone-home objects**: JavaScript, Launch, SubmitForm, remote references | PDF object scan |
 | ✅ | **Persistent document IDs** | PDF `/ID` · XMP instance IDs |
-| 🗺️ | **Printer tracking dots** (Machine Identification Code) | Yellow-channel isolation + grid decoding |
-| 🗺️ | **Camera sensor noise (PRNU)** linking photos to one camera | Survives re-encoding |
+| ✅ | **Printer tracking dots** (Machine Identification Code) on scans and scanned PDFs | Yellow-speck isolation + grid regularity. Enhanced view extracted; removed by `sanitize` |
+| ✅ | **Camera sensor fingerprint (PRNU)** linking photos to one camera | `camera-id` build/match with z-scores; `sanitize --desync` breaks it |
 
 </details>
 
@@ -268,6 +303,7 @@ flowchart LR
 | **📄 PDF · `text`** | Burns in **real** redactions under every detected black box, removes hidden text, annotations, JavaScript, attachments, thumbnails and metadata, strips EXIF from embedded JPEGs, rewrites the whole file (old revisions gone), and assigns a fresh random `/ID`. |
 | **📝 Office** | Empties properties, **accepts all tracked changes**, deletes comments, people and speaker notes, removes hidden text and rsids, nulls template and data-source paths, **unhides** hidden sheets, rows and slides (so you see what you're sending), sanitizes embedded media, and zeroes zip timestamps. |
 | **🎬 Audio / video** | `ffmpeg -c copy` (no quality loss). Keeps only video, audio, and subtitle streams, which **drops timed GPS and gyro tracks**. Wipes all metadata and sets bitexact flags. |
+| **👁️ Visual** *(opt-in)* | `--redact-text`, `--redact-codes`, `--redact-region` draw **solid** boxes (nothing to un-pixelate). `--blur-faces` uses heavy blur plus noise. `--desync` resamples ~1-2% and crops to break PRNU. Printer dots are always removed from images and scanned PDF pages. |
 | **🔤 Text** | Removes zero-width and tag characters, normalizes odd spaces, and fixes homoglyphs, but only inside mixed-script words, so real Cyrillic or Greek text is left alone. |
 
 > [!TIP]
@@ -305,7 +341,10 @@ unredact_file/
 ├── image.py      EXIF/GPS/IPTC/XMP/thumbnail/trailer analysis + pixel-rebuild sanitizer
 ├── pdf.py        redaction checks, revisions, hidden text, JS · raster/text sanitize
 ├── office.py     OOXML part-level analysis + package rewriter
-└── media.py      ffprobe / ffmpeg wrapper
+├── media.py      ffprobe / ffmpeg wrapper
+├── vision.py     OCR · QR/barcodes · faces · pixelation · printer dots · PRNU
+├── banner.py     help banner + OPSEC tip box
+└── tips.py       rotating OPSEC advice
 ```
 
 </details>
@@ -323,9 +362,11 @@ unredact_file/
 ## ⚠️ Limitations
 
 > [!WARNING]
-> **Layer 3 isn't built yet.** A photo with no metadata can still show your street sign, your face in a reflection, or your boarding pass.
+> **Scene understanding isn't built yet.** Codes, faces and printed text are caught, but reflections, landmarks and other geolocation clues in a photo are not.
 
-- **PRNU sensor noise survives re-encoding.** A clean photo can still be statistically linked to the camera that took it.
+- **PRNU survives a normal `sanitize`.** Only `--desync` breaks it. `camera-id` needs full-resolution, uncropped originals to match.
+- **OCR is English-first and tuned for screenshots and documents.** Handwriting, stylized fonts and text in natural scenes are often missed.
+- **Printer-dot removal targets the classic yellow grid.** Other or invisible marking schemes aren't detected.
 - **Raster PDF mode loses text selection and accessibility.** Use `--pdf-mode text` if you need them.
 - **Excel sanitize removes comment VML**, which also removes legacy form controls.
 - **Encrypted PDFs** are reported but not analyzed.
@@ -339,10 +380,12 @@ unredact_file/
 - [x] Layer 2: failed redactions, revisions, tracked changes, hidden content
 - [x] Layer 4: text canaries, rsids, phone-home objects
 - [x] Self-verifying `sanitize`
-- [ ] Layer 2: reversible blur detection · screenshot OCR
-- [ ] Layer 3: vision-model scene analysis · faces, plates, QR codes · sun-angle geolocation
-- [ ] Layer 4: printer tracking dots · PRNU linkage
-- [ ] `--blur-faces` and `--redact-regions` for visual sanitizing
+- [x] Layer 2: reversible-pixelation detection · OCR of sensitive text in images
+- [x] Layer 3: QR / barcode decoding + boarding-pass parsing · face detection
+- [x] Layer 4: printer tracking dots (detect + remove) · PRNU camera ID + `--desync`
+- [x] Visual sanitizing: `--blur-faces`, `--redact-codes`, `--redact-text`, `--redact-region`
+- [ ] Layer 3: scene analysis (reflections, landmarks, sun-angle geolocation) · license plates
+- [ ] Printer-dot decoding (serial number + timestamp, DocuColor pattern)
 - [ ] ODF and camera RAW support
 - [ ] Browser/WASM version on unredact.tools (files never leave the device)
 - [ ] unredact.me integration to cross-reference serials, usernames, and document IDs
@@ -377,6 +420,8 @@ unredact-file scan ./demo/* --extract ./demo/loot
 | [Dangerzone](https://dangerzone.rocks) | Untrusted documents → safe pixel-only PDFs |
 | [Depix](https://github.com/spipm/Depix) | Recovers text from pixelated screenshots (the attack Layer 2 will warn about) |
 | [x-ray](https://github.com/freelawproject/x-ray) | Free Law Project's bad-redaction finder for court PDFs |
+| [DEDA](https://github.com/dfd-tud/deda) | TU Dresden's printer-tracking-dot extraction and anonymisation |
+| [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | Face detector bundled for `--blur-faces` (MIT) |
 
 ---
 

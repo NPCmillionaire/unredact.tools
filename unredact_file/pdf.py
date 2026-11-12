@@ -7,9 +7,10 @@ import re
 
 import pikepdf
 import pymupdf
+from PIL import Image
 
 from .common import scan_strings, scan_text_canaries
-from .image import sanitize_image_bytes, scan_image
+from .image import VisualOpts, apply_visual, sanitize_image_bytes, scan_image, scan_visual
 from .model import Report
 from .xmp import scan_xmp
 
@@ -110,7 +111,7 @@ def _revisions(raw: bytes):
     return ends[:-1]
 
 
-def scan_pdf(path, report: Report | None = None) -> Report:
+def scan_pdf(path, report: Report | None = None, visual: bool = True) -> Report:
     raw = open(path, "rb").read() if isinstance(path, str) else path
     report = report or Report(str(path), "application/pdf")
     report.filetype = "application/pdf"
@@ -275,9 +276,18 @@ def scan_pdf(path, report: Report | None = None) -> Report:
             embedded_imgs += 1
             if ex.get("ext") in ("jpeg", "jpg", "jpx") and (b"Exif" in ex["image"][:64 * 1024]
                                                           or b"xmpmeta" in ex["image"][:64 * 1024]):
-                sub = scan_image(ex["image"], label=f"img{xref}")
+                sub = scan_image(ex["image"], label=f"img{xref}", visual=False)
                 sub.findings = [f for f in sub.findings if f.severity != "info"]
                 report.merge(sub, f"{src} image xref {xref}")
+            if visual and ex.get("width", 0) >= 64 and ex.get("height", 0) >= 64:
+                try:  # QR codes, faces, pixelation, printer dots inside embedded images/scans
+                    sub = Report(f"img{xref}", "image")
+                    scan_visual(sub, Image.open(io.BytesIO(ex["image"])), ocr=False,
+                                source="pixels")
+                    sub.errors = [e for e in sub.errors if "skipped" not in e]
+                    report.merge(sub, f"{src} image xref {xref}")
+                except Exception:  # noqa: BLE001
+                    pass
     if link_domains:
         report.add("low", "tracking", "External links",
                    ", ".join(sorted(link_domains)[:15]), "links")
@@ -322,16 +332,36 @@ def _strip_info(pdf_bytes: bytes) -> bytes:
         return out.getvalue()
 
 
-def sanitize_pdf(path, out_path, mode="raster", dpi=200):
+def sanitize_pdf(path, out_path, mode="raster", dpi=200, visual: VisualOpts | None = None,
+                 notes: list | None = None):
     """mode='raster': every page flattened to a picture (Dangerzone-style, removes EVERYTHING).
     mode='text': keep selectable text; burn in redactions, scrub metadata/JS/attachments/annots."""
     src = pymupdf.open(path)
     if mode == "raster":
         out = pymupdf.open()
-        for page in src:
+        visual = visual or VisualOpts()
+        notes = notes if notes is not None else []
+        for pno, page in enumerate(src, 1):
             pix = page.get_pixmap(dpi=dpi, annots=False)
-            np = out.new_page(width=page.rect.width, height=page.rect.height)
-            np.insert_image(np.rect, stream=pix.tobytes("jpeg", jpg_quality=90))
+            png = pix.tobytes("png")
+            if visual.any():  # pixel-level clean-up of the rendered page (dots, faces, codes...)
+                try:
+                    page_notes = []
+                    img = apply_visual(Image.open(io.BytesIO(png)).convert("RGB"), visual,
+                                       page_notes)
+                    notes.extend(f"page {pno}: {n}" for n in page_notes)
+                    buf = io.BytesIO()
+                    img.save(buf, "PNG")
+                    png = buf.getvalue()
+                except RuntimeError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    pass
+            img = Image.open(io.BytesIO(png)).convert("RGB")
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=90)
+            newp = out.new_page(width=page.rect.width, height=page.rect.height)
+            newp.insert_image(newp.rect, stream=buf.getvalue())
         out.set_metadata({})
         data = out.tobytes(garbage=4, deflate=True)
     else:
@@ -359,12 +389,27 @@ def sanitize_pdf(path, out_path, mode="raster", dpi=200):
                     continue
                 done.add(x)
                 try:
-                    if src.xref_get_key(x, "Filter")[1] != "/DCTDecode":
-                        continue
-                    stream = src.xref_stream_raw(x)
-                    if b"Exif" in stream[:64 * 1024] or b"xmpmeta" in stream[:64 * 1024]:
-                        clean, _ = sanitize_image_bytes(stream)
-                        page.replace_image(x, stream=clean)
+                    if src.xref_get_key(x, "Filter")[1] == "/DCTDecode":
+                        stream = src.xref_stream_raw(x)
+                        if b"Exif" in stream[:64 * 1024] or b"xmpmeta" in stream[:64 * 1024]:
+                            clean, _ = sanitize_image_bytes(stream)
+                            page.replace_image(x, stream=clean)
+                    # printer tracking dots / requested visual redactions inside scanned images
+                    vopts = visual or VisualOpts()
+                    if vopts.any():
+                        ex = src.extract_image(x)
+                        if ex and ex.get("width", 0) >= 64:
+                            page_notes = []
+                            cleaned = apply_visual(Image.open(io.BytesIO(ex["image"])).convert("RGB"),
+                                                   vopts, page_notes)
+                            if page_notes:
+                                buf = io.BytesIO()
+                                cleaned.save(buf, "PNG")
+                                page.replace_image(x, stream=buf.getvalue())
+                                if notes is not None:
+                                    notes.extend(f"image {x}: {n}" for n in page_notes)
+                except RuntimeError:
+                    raise
                 except Exception:  # noqa: BLE001
                     continue
         src.set_metadata({})

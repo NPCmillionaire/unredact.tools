@@ -45,18 +45,18 @@ def detect(path) -> str:
         return "unknown"
 
 
-def scan(path) -> Report:
+def scan(path, visual: bool = True, ocr: bool = True) -> Report:
     raw = open(path, "rb").read()
     r = Report(path, "?", len(raw), hashlib.sha256(raw).hexdigest())
     kind = detect(path)
     r.add("info", "structure", "Filename", os.path.basename(path), "filesystem")
     scan_strings(r, os.path.basename(path), "filename", "medium")
     if kind == "image":
-        image.scan_image(raw, r)
+        image.scan_image(raw, r, visual=visual, ocr=ocr)
     elif kind == "pdf":
-        pdf.scan_pdf(raw, r)
+        pdf.scan_pdf(raw, r, visual=visual)
     elif kind == "office":
-        office.scan_office(raw, r)
+        office.scan_office(raw, r, visual=visual)
     elif kind == "media":
         media.scan_media(path, r)
     elif kind == "text":
@@ -83,15 +83,16 @@ def default_out(path, ext=None):
     return f"{root}.clean{ext or e}"
 
 
-def sanitize(path, out=None, pdf_mode="raster") -> str:
+def sanitize(path, out=None, pdf_mode="raster", visual=None, notes=None) -> str:
     kind = detect(path)
     if kind == "image":
-        data, ext = image.sanitize_image_bytes(open(path, "rb").read())
+        data, ext = image.sanitize_image_bytes(open(path, "rb").read(),
+                                               visual=visual or image.VisualOpts(), notes=notes)
         out = out or default_out(path, ext)
         open(out, "wb").write(data)
     elif kind == "pdf":
         out = out or default_out(path)
-        pdf.sanitize_pdf(path, out, mode=pdf_mode)
+        pdf.sanitize_pdf(path, out, mode=pdf_mode, visual=visual, notes=notes)
     elif kind == "office":
         out = out or default_out(path)
         open(out, "wb").write(office.sanitize_office(open(path, "rb").read()))

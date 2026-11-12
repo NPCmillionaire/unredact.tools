@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import io
+import re
+from dataclasses import dataclass, field
 
 from PIL import ExifTags, Image, ImageCms, ImageOps, IptcImagePlugin
 
@@ -184,7 +186,8 @@ def _jpeg_end(raw: bytes) -> int | None:
     return None
 
 
-def scan_image(path_or_bytes, report: Report | None = None, label="image") -> Report:
+def scan_image(path_or_bytes, report: Report | None = None, label="image",
+               visual: bool = True, ocr: bool = True, faces: bool = True) -> Report:
     raw = path_or_bytes if isinstance(path_or_bytes, bytes) else open(path_or_bytes, "rb").read()
     report = report or Report(label, "image")
     try:
@@ -318,7 +321,131 @@ def scan_image(path_or_bytes, report: Report | None = None, label="image") -> Re
                    "trailer")
         report.artifact("appended.mp4" if is_video else "appended.bin", tail)
         report.fact("hidden", "embedded motion-photo video" if is_video else "appended hidden data")
+    if visual:
+        scan_visual(report, img, ocr=ocr, faces=faces)
     return report
+
+
+# ================================================================ visual layer
+def scan_visual(report: Report, img, ocr=True, faces=True, source="pixels"):
+    """Run the pixel-level detectors (see vision.py) and add findings."""
+    from . import vision
+    if not vision.available():
+        report.errors.append("visual checks skipped: pip install 'unredact-file[vision]'")
+        return
+    try:
+        img.seek(0)
+        arr = vision.load(img)
+    except Exception as e:  # noqa: BLE001
+        report.errors.append(f"visual checks: {e}")
+        return
+    loc = lambda b: f"at x={b.x} y={b.y} ({b.w}x{b.h})"  # noqa: E731
+
+    for b in vision.detect_codes(arr):
+        bp = b.meta.get("boarding_pass")
+        if bp:
+            report.add("critical", "identity", f"Boarding pass barcode ({b.label})",
+                       f"{bp['name']} - booking {bp['booking_ref']} - {bp['airline']}{bp['flight']} "
+                       f"{bp['from']}->{bp['to']}, seat {bp['seat']}. The booking reference + "
+                       f"surname is enough to log into the airline reservation. {loc(b)}", source)
+            report.fact("identity", f"boarding pass: {bp['name']}, booking ref {bp['booking_ref']}")
+            report.fact("location", f"flight {bp['airline']}{bp['flight']} {bp['from']}->{bp['to']}")
+            continue
+        text = b.detail
+        sev = "medium"
+        if re.search(r"[\w.+-]+@[\w-]+\.|\+?\d[\d .-]{8,}", text):
+            sev = "high"
+        report.add(sev, "hidden-content", f"{b.label} decodes to", f"{text[:200]}  {loc(b)}", source)
+        report.fact("hidden", f"{b.label}: {text[:70]}")
+
+    if ocr:
+        for b in vision.detect_sensitive_text(arr):
+            sev, bucket = b.meta["severity"], b.meta["bucket"]
+            report.add(sev, bucket, f"Readable in the image: {b.label}", f"{b.detail}  {loc(b)}",
+                       "OCR")
+            report.fact(bucket if bucket in ("identity", "location", "network") else "hidden",
+                        f"visible {b.label[0].lower() + b.label[1:]}: {b.detail[:60]}")
+
+    for b in vision.detect_pixelation(arr):
+        report.add("high", "redaction", "Pixelated region - may be reversible",
+                   f"{b.detail} {loc(b)}. Mosaics over text can be un-pixelated (Depix). "
+                   "Use a solid box instead.", source)
+        report.fact("hidden", "pixelated (possibly reversible) region")
+
+    if faces:
+        found = vision.detect_faces(arr)
+        if found:
+            report.add("medium", "identity", f"{len(found)} face(s) visible",
+                       "Bystanders and children are identifiable by face recognition. "
+                       "Sanitize with --blur-faces. " + "; ".join(loc(b) for b in found[:6]), source)
+            report.fact("identity", f"{len(found)} visible face(s)")
+
+    dots = vision.detect_printer_dots(arr)
+    if dots:
+        report.add("high", "tracking", "Printer tracking dots (Machine Identification Code)",
+                   f"{dots['dots']} faint yellow dots on a {dots['spacing_px']}px grid. Color laser "
+                   "printers encode their serial number and the print date/time this way. "
+                   "Enhanced view extracted.", source)
+        report.fact("tracking", "printer tracking dots (printer serial + print time)")
+        report.artifact("tracking_dots_enhanced.png", vision.enhance_dots(arr))
+
+
+@dataclass
+class VisualOpts:
+    blur_faces: bool = False
+    redact_codes: bool = False
+    redact_text: bool = False
+    regions: list = field(default_factory=list)  # [(x, y, w, h)]
+    desync: bool = False
+    remove_dots: bool = True
+
+    def any(self):
+        return self.blur_faces or self.redact_codes or self.redact_text or self.regions or \
+            self.desync or self.remove_dots
+
+
+def apply_visual(img: Image.Image, opts: "VisualOpts", notes: list) -> Image.Image:
+    """Pixel-level sanitizing. Operates on an already-rotated RGB(A) PIL image."""
+    from . import vision
+    if not vision.available():
+        if opts.blur_faces or opts.redact_codes or opts.redact_text or opts.regions or opts.desync:
+            raise RuntimeError("visual sanitizing needs: pip install 'unredact-file[vision]'")
+        return img
+    alpha = img.getchannel("A") if img.mode in ("RGBA", "LA") else None
+    arr = vision.load(img.convert("RGB"))
+    boxes = []
+    if opts.redact_codes:
+        found = vision.detect_codes(arr)
+        boxes += found
+        if found:
+            notes.append(f"redacted {len(found)} barcode/QR code(s)")
+    if opts.redact_text:
+        found = vision.detect_sensitive_text(arr)
+        boxes += found
+        if found:
+            notes.append(f"redacted {len(found)} sensitive text item(s)")
+    for (x, y, w, h) in opts.regions:
+        boxes.append(vision.Box(x, y, w, h))
+    if opts.regions:
+        notes.append(f"redacted {len(opts.regions)} manual region(s)")
+    if boxes:
+        arr = vision.redact_boxes(arr, boxes)
+    if opts.blur_faces:
+        found = vision.detect_faces(arr)
+        if found:
+            arr = vision.blur_faces(arr, found)
+            notes.append(f"blurred {len(found)} face(s)")
+    if opts.remove_dots and vision.detect_printer_dots(arr):
+        arr = vision.remove_dots(arr)
+        notes.append("removed printer tracking dots")
+    if opts.desync:
+        arr = vision.desync(arr)
+        notes.append("desynced sensor-noise fingerprint (resample + crop)")
+        alpha = None if alpha is None else alpha.resize((arr.shape[1], arr.shape[0]))
+    out = vision.to_pil(arr)
+    if alpha is not None:
+        out.putalpha(alpha.resize(out.size))
+    return out
 
 
 # ====================================================================== sanitize
@@ -327,7 +454,8 @@ SAVE_FMT = {"JPEG": "JPEG", "MPO": "JPEG", "PNG": "PNG", "WEBP": "WEBP", "TIFF":
 EXT = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "TIFF": ".tif"}
 
 
-def sanitize_image_bytes(raw: bytes, keep_format=True) -> tuple[bytes, str]:
+def sanitize_image_bytes(raw: bytes, keep_format=True, visual: "VisualOpts | None" = None,
+                         notes: list | None = None) -> tuple[bytes, str]:
     """Rebuild image from pixels only. Returns (bytes, extension)."""
     img = Image.open(io.BytesIO(raw))
     fmt = img.format or "PNG"
@@ -345,6 +473,11 @@ def sanitize_image_bytes(raw: bytes, keep_format=True) -> tuple[bytes, str]:
                                             outputMode=img.mode)
         except Exception:  # noqa: BLE001
             pass
+    if visual is not None and visual.any():
+        was_gray = img.mode in ("L", "LA")
+        img = apply_visual(img, visual, notes if notes is not None else [])
+        if was_gray:
+            img = img.convert("LA" if img.mode == "RGBA" else "L")
     clean = Image.frombytes(img.mode, img.size, img.tobytes())  # fresh object: zero metadata
     out_fmt = SAVE_FMT.get(fmt, "PNG") if keep_format else "PNG"
     if out_fmt == "JPEG" and clean.mode not in ("RGB", "L", "CMYK"):

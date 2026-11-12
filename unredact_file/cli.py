@@ -67,7 +67,7 @@ def cmd_scan(args):
         if not os.path.isfile(p):
             print(f"skip: {p} is not a file", file=sys.stderr)
             continue
-        r = scan(p)
+        r = scan(p, visual=not args.fast, ocr=not (args.fast or args.no_ocr))
         reports.append(r)
         if args.extract and r.artifacts:
             d = os.path.join(args.extract, os.path.basename(p) + "_artifacts")
@@ -84,15 +84,46 @@ def cmd_scan(args):
     return 2 if worst <= 1 else 0  # non-zero exit if high/critical leaks (CI-friendly)
 
 
+HINTS = {  # remaining finding title prefix -> flag that fixes it
+    "Readable in the image": "--redact-text",
+    "Boarding pass": "--redact-codes",
+    "QR Code": "--redact-codes",
+    "face(s) visible": "--blur-faces",
+    "Pixelated region": "--redact-region X,Y,W,H",
+}
+
+
+def _region(s):
+    try:
+        x, y, w, h = (int(v) for v in s.split(","))
+        return (x, y, w, h)
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected X,Y,W,H (pixels), e.g. 120,40,300,60")
+
+
+def _visual_opts(args):
+    from .image import VisualOpts
+    return VisualOpts(
+        blur_faces=args.blur_faces or args.visual,
+        redact_codes=args.redact_codes or args.visual,
+        redact_text=args.redact_text or args.visual,
+        regions=args.redact_region or [],
+        desync=args.desync,
+        remove_dots=not args.keep_dots,
+    )
+
+
 def cmd_sanitize(args):
     color = color_enabled(sys.stdout, args.no_color)
     if args.output and len(args.files) > 1:
         sys.exit("-o only works with a single input file")
     rc = 0
+    opts = _visual_opts(args)
     for p in args.files:
         before = scan(p)
+        notes = []
         try:
-            out = sanitize(p, args.output, pdf_mode=args.pdf_mode)
+            out = sanitize(p, args.output, pdf_mode=args.pdf_mode, visual=opts, notes=notes)
         except Exception as e:  # noqa: BLE001
             print(f"x {p}: {e}", file=sys.stderr)
             rc = 1
@@ -102,14 +133,58 @@ def cmd_sanitize(args):
         a = [f for f in after.findings if f.severity not in ("info",)
              and f.category != "structure"]
         print(_c(f"+ {p} -> {out}", BOLD, color))
+        for n in notes:
+            print(_c(f"  · {n}", DIM, color))
         after = _c(f"{len(a)} after", "\033[1;32m" if not a else "\033[1;31m", color)
         print(f"  leaks: {_c(f'{b} before', COLORS['high'], color)} -> {after}")
+        hints = set()
         for f in a:
             tag = _c(f"[{f.severity.upper():^8}]", COLORS[f.severity], color)
             print(f"  remaining {tag} {f.title}: {f.detail[:120]}")
+            hints.update(flag for key, flag in HINTS.items() if key in f.title)
+        if hints:
+            print(_c(f"  hint: re-run with {' '.join(sorted(hints))}", "\033[36m", color))
         if any(f.severity in ("critical", "high") for f in a):
             rc = 2
     return rc
+
+
+def cmd_camera(args):
+    from PIL import Image as _I  # noqa: F401  (ensures pillow plugins load)
+    from . import vision
+    if not vision.available():
+        sys.exit("camera-id needs: pip install 'unredact-file[vision]'")
+    import numpy as np
+    color = color_enabled(sys.stdout, args.no_color)
+    if args.action == "build":
+        imgs = [vision.load(open(f, "rb").read()) for f in args.files]
+        K = vision.build_fingerprint(imgs)
+        out = args.output or "camera.npz"
+        np.savez_compressed(out, K=K)
+        print(_c(f"+ fingerprint from {len(imgs)} photo(s) -> {out}", BOLD, color),
+              f"({K.shape[1]}x{K.shape[0]})")
+        print(_c("  tip: 10-30 photos of bright, flat, unedited scenes (sky, walls) work best",
+                 DIM, color))
+        return 0
+    # match / compare
+    if args.action == "match":
+        K = np.load(args.files[0])["K"]
+        targets = args.files[1:]
+    else:  # compare: fingerprint from the first photo, test the rest
+        K = vision.build_fingerprint([vision.load(open(args.files[0], "rb").read())])
+        targets = args.files[1:]
+    if not targets:
+        sys.exit("give at least one photo to test")
+    hit = False
+    for f in targets:
+        r = vision.match_fingerprint(K, vision.load(open(f, "rb").read()))
+        code = "\033[1;31m" if r["z"] > 4 else "\033[1;32m"
+        print(f"  {f}: {_c(r['verdict'], code, color)}  "
+              + _c(f"(z={r['z']}, corr={r['correlation']}, {r['compared_px']})", DIM, color))
+        hit |= r["z"] > 4
+    if hit:
+        print(_c("  sanitize --desync breaks this link (resample + crop).", "\033[36m", color))
+    return 2 if hit else 0
 
 
 class Parser(argparse.ArgumentParser):
@@ -139,7 +214,7 @@ class Parser(argparse.ArgumentParser):
                 return (c("  $ ", DIM, on) + c(cmd, "\033[36m", on) +
                         (c("  #" + note, DIM, on) if note else ""))
             text = re.sub(r"(?m)^(  \$ )(.*)$", example, text)
-            text = re.sub(r"(?m)^(  )(scan|sanitize|tip)(\s)", lambda m: m.group(1) +
+            text = re.sub(r"(?m)^(  )(scan|sanitize|camera-id|tip)(\s)", lambda m: m.group(1) +
                           c(m.group(2), BOLD, on) + m.group(3), text)
         file.write(text)
 
@@ -150,6 +225,7 @@ MAIN_DESC = """\
 commands:
   scan       show what metadata and hidden content a file leaks
   sanitize   write a scrubbed copy, then re-scan it to prove it's clean
+  camera-id  link photos to the camera that took them (sensor fingerprint)
   tip        print a random OPSEC tip (--all for the full list)
 
 run `unredact-file <command> --help` for that command's options."""
@@ -159,7 +235,8 @@ examples:
   $ unredact-file scan vacation.jpg
   $ unredact-file scan *.pdf *.docx --extract ./loot
   $ unredact-file sanitize memo.docx court_filing.pdf
-  $ unredact-file sanitize report.pdf --pdf-mode text
+  $ unredact-file sanitize screenshot.png --visual
+  $ unredact-file camera-id compare known.jpg anonymous.jpg
 
 supports:
   images (JPEG PNG WebP TIFF HEIC) · PDF · DOCX XLSX PPTX · audio/video (ffmpeg) · text
@@ -169,7 +246,9 @@ docs: https://github.com/NPCmillionaire/unredact.tools"""
 SCAN_DESC = """\
 Show what a file gives away: GPS, device serials, authors, usernames, failed
 redactions, earlier PDF versions, deleted tracked changes, hidden text, comments,
-embedded files, and invisible watermarks. Nothing is uploaded or modified."""
+embedded files, and invisible watermarks. Images are also checked pixel by pixel:
+readable sensitive text (OCR), QR codes and boarding passes, faces, reversible
+pixelation, and printer tracking dots. Nothing is uploaded or modified."""
 
 SCAN_EPILOG = """\
 examples:
@@ -177,6 +256,7 @@ examples:
   $ unredact-file scan *.pdf *.docx
   $ unredact-file scan memo.docx --extract ./loot
   $ unredact-file scan filing.pdf --json | jq '.[0].counts'
+  $ unredact-file scan huge_folder/* --fast       # metadata only, no OCR/vision
 
 exit codes:
   0   no high or critical leaks
@@ -196,11 +276,36 @@ examples:
   $ unredact-file sanitize photo.jpg              # -> photo.clean.jpg
   $ unredact-file sanitize a.pdf b.docx c.mp4
   $ unredact-file sanitize report.pdf -o public.pdf --pdf-mode text
+  $ unredact-file sanitize screenshot.png --redact-text --redact-codes
+  $ unredact-file sanitize party.jpg --blur-faces --desync
 
 exit codes:
   0   every output re-scanned clean
   1   a file couldn't be sanitized
   2   a high or critical leak survived"""
+
+
+CAMERA_DESC = """\
+Camera sensor fingerprinting (PRNU). Every sensor has a unique, fixed noise pattern
+that survives metadata stripping and JPEG compression. It can link an "anonymous"
+photo to other photos from the same phone. Check whether yours can be linked, then
+sanitize with --desync to break the link."""
+
+CAMERA_EPILOG = """\
+actions:
+  build     build a fingerprint from reference photos you took with one camera
+  match     test photos against a saved fingerprint
+  compare   quick check: use the first photo as the reference, test the rest
+
+examples:
+  $ unredact-file camera-id build my_phone/*.jpg -o myphone.npz
+  $ unredact-file camera-id match myphone.npz anonymous_post.jpg
+  $ unredact-file camera-id compare known.jpg suspect1.jpg suspect2.jpg
+  $ unredact-file sanitize anonymous_post.jpg --desync   # then match again
+
+notes:
+  photos must be full-resolution originals in the same orientation; resized or
+  cropped images won't match. more reference photos = a stronger fingerprint."""
 
 
 def cmd_tip(args):
@@ -238,6 +343,9 @@ def _main(argv=None):
                    help="save recovered artifacts: thumbnails, old PDF revisions, attachments, "
                         "motion-photo video")
     s.add_argument("--all", action="store_true", help="include info-level findings")
+    s.add_argument("--fast", action="store_true",
+                   help="metadata only: skip visual checks (OCR, codes, faces, dots)")
+    s.add_argument("--no-ocr", action="store_true", help="skip OCR of text inside images")
     s.add_argument("--no-color", action="store_true", help="disable colors (NO_COLOR also works)")
     s.set_defaults(fn=cmd_scan)
 
@@ -246,8 +354,29 @@ def _main(argv=None):
     z.add_argument("-o", "--output", metavar="PATH", help="output path (single input only)")
     z.add_argument("--pdf-mode", choices=["raster", "text"], default="raster",
                    help="how to rebuild PDFs (default: raster, see below)")
+    v = z.add_argument_group("visual redaction (images and raster PDFs)")
+    v.add_argument("--blur-faces", action="store_true", help="blur every detected face")
+    v.add_argument("--redact-codes", action="store_true",
+                   help="black out QR codes and barcodes (boarding passes!)")
+    v.add_argument("--redact-text", action="store_true",
+                   help="black out sensitive text found by OCR (emails, phones, SSNs, cards...)")
+    v.add_argument("--redact-region", action="append", type=_region, metavar="X,Y,W,H",
+                   help="black out a rectangle (repeatable)")
+    v.add_argument("--visual", action="store_true",
+                   help="all of the above detectors: faces + codes + text")
+    v.add_argument("--desync", action="store_true",
+                   help="break the camera sensor fingerprint (PRNU) with a tiny resample")
+    v.add_argument("--keep-dots", action="store_true",
+                   help="don't remove printer tracking dots (removed by default)")
     z.add_argument("--no-color", action="store_true", help="disable colors (NO_COLOR also works)")
     z.set_defaults(fn=cmd_sanitize)
+
+    k = sub.add_parser("camera-id", description=CAMERA_DESC, epilog=CAMERA_EPILOG)
+    k.add_argument("action", choices=["build", "match", "compare"])
+    k.add_argument("files", nargs="+", metavar="FILE")
+    k.add_argument("-o", "--output", metavar="PATH", help="fingerprint file for build")
+    k.add_argument("--no-color", action="store_true", help="disable colors")
+    k.set_defaults(fn=cmd_camera)
 
     t = sub.add_parser("tip", description="Print a random OPSEC tip.")
     t.add_argument("--all", action="store_true", help="list every tip")

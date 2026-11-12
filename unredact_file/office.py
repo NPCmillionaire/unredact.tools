@@ -72,7 +72,8 @@ APP = {
 }
 
 
-def scan_office(raw: bytes, report: Report | None = None, label="document", depth=0) -> Report:
+def scan_office(raw: bytes, report: Report | None = None, label="document", depth=0,
+                visual: bool = True) -> Report:
     report = report or Report(label, "office")
     try:
         z = zipfile.ZipFile(io.BytesIO(raw))
@@ -329,7 +330,7 @@ def scan_office(raw: bytes, report: Report | None = None, label="document", dept
     for n in names:
         if "/media/" in n and n.lower().endswith((".jpg", ".jpeg", ".png", ".tif", ".tiff",
                                                    ".webp", ".heic")):
-            sub = scan_image(read(n), label=n)
+            sub = scan_image(read(n), label=n, visual=visual, ocr=False)
             sub.findings = [f for f in sub.findings
                             if f.severity in ("critical", "high", "medium")]
             if sub.findings:
@@ -340,7 +341,7 @@ def scan_office(raw: bytes, report: Report | None = None, label="document", dept
                        f"{n} ({len(data)} bytes, extracted) - full file inside the document", n)
             report.artifact(posixpath.basename(n), data)
             if data[:2] == b"PK" and depth < 2:
-                sub = scan_office(data, label=n, depth=depth + 1)
+                sub = scan_office(data, label=n, depth=depth + 1, visual=visual)
                 report.merge(sub, n)
     return report
 
