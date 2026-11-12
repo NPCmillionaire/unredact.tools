@@ -98,7 +98,8 @@ def cmd_sanitize(args):
         a = [f for f in after.findings if f.severity not in ("info",)
              and f.category != "structure"]
         print(_c(f"+ {p} -> {out}", BOLD, color))
-        print(f"  leaks: {b} before -> {len(a)} after")
+        after = _c(f"{len(a)} after", "\033[1;32m" if not a else "\033[1;31m", color)
+        print(f"  leaks: {_c(f'{b} before', COLORS['high'], color)} -> {after}")
         for f in a:
             tag = _c(f"[{f.severity.upper():^8}]", COLORS[f.severity], color)
             print(f"  remaining {tag} {f.title}: {f.detail[:120]}")
