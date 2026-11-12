@@ -94,6 +94,7 @@ This installs three equivalent commands: **`unredact.tools`**, the short **`unre
 | Audio / video | `brew install ffmpeg` · `apt install ffmpeg` | MP4, MOV, MKV, MP3, FLAC… |
 | **Visual checks** | `pip install -e ".[vision]"` + `brew install tesseract` · `apt install tesseract-ocr` | OCR, QR/barcodes, plates, faces, pixelation, printer dots, camera ID |
 | AI scene review *(optional)* | [Ollama](https://ollama.com) + `ollama pull qwen3-vl:8b` | `scan --scene`: reflections, landmarks, regional clues |
+| City odds | `pip install -e ".[geo]"` | offline city list for `sun`'s where-people-live breakdown |
 | Everything | `pip install -e ".[all]"` | all of the above |
 | Dev / tests | `pip install -e ".[dev]"` | pytest + leaky-fixture generators |
 
@@ -179,7 +180,37 @@ unredact.tools sun --time 2026-11-10T14:30-05:00 --where 41.10,-80.65     # what
   best match: 41.25, -80.75  (candidate area ~666 x 876 km)
 ```
 
-Without a shadow bearing you get a circle of possible places, narrowed to the photo's time zone. Adding the bearing narrows it to one area. `--geojson` writes every candidate point for a map. `scan` flags photos whose EXIF time includes a time zone, since that's what makes this attack possible.
+**Measure the shadow in the photo, with odds.** You don't have to measure anything by hand. Mark an object's base, its top and its shadow's tip, and the tool corrects for perspective and reports how likely each place is:
+
+```bash
+unredact.tools sun --picker street.jpg     # writes a click-to-mark page, gives you the command
+unredact.tools sun --photo street.jpg --object 1267,1693,1221,944,1666,1465 --horizon 1051,1102,2927,1053
+unredact.tools sun --photo street.jpg --auto          # a vision model marks the points (local Ollama)
+```
+
+```console
+  sun elevation: 22.8° ± 1.7°  (3 object(s): 22.8°, 22.8°, 22.8°; camera tilt from horizon you marked)
+  95% of the probability: a band ~735 km wide, 8.9 million km² in total
+
+  WHERE (weighted by where people live)
+      77% ███████████████░░░░░ United States
+      11% ██░░░░░░░░░░░░░░░░░░ Canada
+  most likely areas (city + 150 km)
+      18% ████░░░░░░░░░░░░░░░░ New York City, NY
+      14% ███░░░░░░░░░░░░░░░░░ Washington, DC
+
+  77% chance this photo was taken in United States; 18% near New York City
+```
+
+How the odds are made:
+
+- **Camera tilt** comes from a horizon you mark, from straight vertical edges in the photo (vanishing-point RANSAC), or from the objects themselves. Focal length comes from EXIF.
+- **Error bars** come from 3,000 simulated re-measurements with realistic noise: point placement, focal length, camera tilt, objects that lean, ground that slopes.
+- **Places** are scored by how well the sun there matches the measurement, then weighted by the photo's time-zone band and by population (an offline list of ~34,000 cities), on the assumption that photos are taken where people live.
+- **A compass heading** (EXIF `GPSImgDirection` or `--heading`) narrows the ring toward one area. Without it, a single shadow can't give a point, and the output says so.
+- **Checking the meter:** on photos that still have GPS, the tool prints how far off it was. `--log results.jsonl` records each result, and `sun --report results.jsonl` tells you whether the 95% ranges really contain the truth 95% of the time.
+
+The older manual inputs still work. Without a shadow bearing you get a circle of possible places, narrowed to the photo's time zone. Adding the bearing narrows it to one area. `--geojson` writes every candidate point for a map. `scan` flags photos whose EXIF time includes a time zone, since that's what makes this attack possible.
 
 ### Printer tracking dots, decoded
 
@@ -382,6 +413,7 @@ unredact_tools/
 ├── vision.py     OCR · QR/barcodes · plates · faces · pixelation · printer dots · PRNU
 ├── printerdots.py  DocuColor tracking-dot extraction + decoding
 ├── sun.py        NOAA solar position · shadow geolocation
+├── shadow.py     perspective-corrected shadow measurement · Monte Carlo odds · picker
 ├── scene.py      opt-in AI scene review (Ollama / Anthropic)
 ├── banner.py     help banner + OPSEC tip box
 └── tips.py       rotating OPSEC advice
@@ -428,7 +460,8 @@ unredact_tools/
 - [x] Visual sanitizing: `--blur-faces`, `--redact-codes`, `--redact-text`, `--redact-region`
 - [x] Layer 3: AI scene review (`--scene`) · sun-angle geolocation (`sun`) · license plates
 - [x] Printer-dot decoding (Xerox DocuColor: serial number + print time)
-- [ ] Automatic shadow measurement (find a vertical object and its shadow without user input)
+- [x] Shadow measurement from marked or model-found points, with Monte Carlo odds and a calibration report
+- [ ] Dedicated object-shadow pairing model for `--auto` (instance shadow detection) and a neural horizon estimator
 - [ ] Decoders for other printer dot layouts (Canon, HP, Epson; see DEDA's research)
 - [ ] ODF and camera RAW support
 - [ ] Browser/WASM version on unredact.tools (files never leave the device)

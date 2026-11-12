@@ -12,5 +12,5 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg tesseract-ocr
-      - run: pip install -e ".[dev,vision]"
+      - run: pip install -e ".[dev,vision,geo]"
       - run: pytest -q

@@ -13,7 +13,8 @@ dependencies = ["pillow>=10.3", "pymupdf>=1.24", "pikepdf>=8", "lxml>=5"]
 heic = ["pillow-heif>=0.16"]
 vision = ["opencv-python-headless>=4.8", "zxing-cpp>=2.2", "numpy>=1.24"]
 dev = ["pytest", "piexif", "python-docx>=1.2", "openpyxl", "python-pptx"]
-all = ["unredact-tools[heic,vision]"]
+geo = ["geonamescache>=2.0"]
+all = ["unredact-tools[heic,vision,geo]"]
 
 [project.urls]
 Homepage = "https://github.com/NPCmillionaire/unredact.tools"

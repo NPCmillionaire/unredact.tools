@@ -338,6 +338,12 @@ measuring the shadow:
   --shadow-ratio HEIGHT:LENGTH   e.g. 2:3.5 for a 2 m pole with a 3.5 m shadow
   --shadow-bearing DEG           compass direction the shadow points (0=N, 90=E)
 
+measuring automatically (best accuracy):
+  $ unredact.tools sun --picker street.jpg        # click the points in your browser
+  $ unredact.tools sun --photo street.jpg --object 812,1490,820,1105,1040,1522
+  $ unredact.tools sun --photo street.jpg --auto  # a vision model finds the points
+  results come with odds: where the photo was probably taken, by country and city.
+
 examples:
   $ unredact.tools sun --photo beach.jpg --shadow-ratio 1:1.8
   $ unredact.tools sun --time 2026-11-10T14:30-05:00 --shadow-ratio 2:3.5 --shadow-bearing 40
@@ -374,16 +380,193 @@ def _photo_time(path):
     return d.replace(tzinfo=_tz(sign * timedelta(hours=int(hh), minutes=int(mm))))
 
 
+def _photo_meta(path):
+    """(width, height, f35, heading, (lat, lon)) with EXIF rotation applied to the size."""
+    from PIL import ExifTags, Image as _I, ImageOps
+    img = _I.open(path)
+    ex = img.getexif()
+    sub = ex.get_ifd(ExifTags.IFD.Exif)
+    gps = ex.get_ifd(ExifTags.IFD.GPSInfo)
+    w, h = ImageOps.exif_transpose(img).size
+    f35 = sub.get(0xA405)
+    heading = float(gps[17]) if 17 in gps else None
+    loc = None
+    try:
+        if 2 in gps and 4 in gps:
+            dms = lambda v: float(v[0]) + float(v[1]) / 60 + float(v[2]) / 3600  # noqa: E731
+            lat = dms(gps[2]) * (-1 if str(gps.get(1, "N")).startswith("S") else 1)
+            lon = dms(gps[4]) * (-1 if str(gps.get(3, "E")).startswith("W") else 1)
+            loc = (lat, lon)
+    except Exception:  # noqa: BLE001
+        pass
+    return w, h, (float(f35) if f35 else None), heading, loc
+
+
+def _pts(text, n, what):
+    try:
+        v = [float(x) for x in text.split(",")]
+        assert len(v) == 2 * n
+    except (ValueError, AssertionError):
+        raise SystemExit(f"{what} expects {2 * n} comma-separated pixel values")
+    return tuple((v[i], v[i + 1]) for i in range(0, 2 * n, 2))
+
+
+def _bar(p, width=20):
+    return "█" * round(p * width) + "░" * (width - round(p * width))
+
+
+def _sun_measure(args, when, color):
+    """Automatic / point-based shadow measurement with a probability read-out."""
+    import json as _json
+    import numpy as np
+    from . import shadow as SH
+    w = h = f35 = heading = truth = None
+    image = None
+    if args.photo:
+        w, h, f35, heading, truth = _photo_meta(args.photo)
+    if args.size:
+        w, h = (int(v) for v in args.size.lower().split("x"))
+    f35 = args.focal_35 or f35
+    heading = args.heading if args.heading is not None else heading
+    if not w:
+        sys.exit("need --photo (or --size WxH) for the image dimensions")
+    if not f35:
+        print(_c("  no focal length in EXIF: assuming a phone main camera (26 mm equiv). "
+                 "Override with --focal-35.", "\033[33m", color))
+        f35 = 26.0
+    objects = [_pts(o, 3, "--object") for o in (args.object or [])]
+    horizon = _pts(args.horizon, 2, "--horizon") if args.horizon else None
+    noise = SH.Noise()
+    if args.auto:
+        from . import scene
+        try:
+            got = scene.propose_shadow_points(open(args.photo, "rb").read(), args.auto, args.scene_model)
+        except scene.SceneError as e:
+            sys.exit(f"--auto: {e}")
+        if not got["objects"]:
+            sys.exit("--auto: the model found no object with a measurable shadow. "
+                     "Mark one yourself: unredact.tools sun --picker " + args.photo)
+        objects += got["objects"]
+        horizon = horizon or got["horizon"]
+        noise.px = max(10.0, 0.008 * float(np.hypot(w, h)))  # model-placed points are rough
+        print(_c(f"  {got['model']} marked {len(got['objects'])} object(s)"
+                 f"{' and a horizon' if got['horizon'] else ''}; treating its points as "
+                 f"±{noise.px:.0f}px", DIM, color))
+    if args.photo and not horizon:
+        try:
+            from . import vision
+            if vision.available():
+                image = vision.load(open(args.photo, "rb").read())
+        except Exception:  # noqa: BLE001
+            image = None
+    try:
+        m = SH.estimate(objects, w, h, f35, horizon=horizon, image=image, noise=noise,
+                        n=args.samples)
+    except ValueError as e:
+        sys.exit(str(e))
+    for wmsg in m.warnings:
+        print(_c(f"  ! {wmsg}", "\033[33m", color))
+    per = ", ".join(f"{v:.1f}°" for v in m.per_object if v is not None)
+    print(f"  sun elevation: {_c(f'{m.elevation:.1f}° ± {m.sigma:.1f}°', BOLD, color)}  "
+          + _c(f"({len(objects)} object(s): {per}; camera tilt from {m.gravity_source}, "
+               f"pitch {m.pitch:+.0f}°)", DIM, color))
+    post = SH.posterior(when, m, heading, noise.heading)
+    if post.get("impossible"):
+        print(_c("  no place on Earth matches this shadow at this time: check the timestamp, "
+                 "time zone and points", "\033[33m", color))
+        return 1
+    off = when.utcoffset().total_seconds() / 3600
+    print(f"  95% of the probability: a band ~{post['ring_width_km']:,.0f} km wide, "
+          f"{post['area95_km2'] / 1e6:.1f} million km² in total "
+          + _c(f"(assumes the UTC{off:+g} time-zone band"
+               + (f" and compass heading {heading:.0f}°" if heading is not None else "") + ")", DIM, color))
+    if heading is None:
+        print(_c("  no compass heading, so the shadow gives a ring, not a point "
+                 "(add --heading DEG if you know which way the camera faced)", DIM, color))
+    if post.get("cities") is None and "countries" not in post:
+        print(_c("  install geonamescache for the where-people-live breakdown "
+                 "(pip install 'unredact-tools[geo]')", DIM, color))
+    elif post.get("countries"):
+        print(_c("\n  WHERE (weighted by where people live)", BOLD, color))
+        for name, pr in post["countries"][:4]:
+            if pr >= 0.01:
+                print(f"    {pr:5.0%} {_bar(pr)} {name}")
+        if post["states"] and post["countries"][0][0] == "United States":
+            print("    US states: " + ", ".join(f"{a} {pr:.0%}" for a, pr in post["states"][:4] if pr >= 0.01))
+        print(_c("  most likely areas (city + 150 km)", BOLD, color))
+        for name, country, admin, pr, la, lo in post["metros"]:
+            if pr >= 0.005:
+                where = f"{name}, {admin}" if admin else f"{name}, {country}"
+                print(f"    {pr:5.0%} {_bar(pr)} {where}  " + _c(f"({la:.1f}, {lo:.1f})", DIM, color))
+        top = post["countries"][0]
+        print(f"\n  {_c(f'{top[1]:.0%} chance this photo was taken in {top[0]}', BOLD, color)}"
+              + (f"; {post['metros'][0][3]:.0%} near {post['metros'][0][0]}" if post["metros"] else ""))
+    if truth:
+        t = SH.truth_check(when, truth[0], truth[1], m)
+        ok = "\033[32m" if t["within_95"] else "\033[31m"
+        true_el = t["true_elevation"]
+        print(_c(f"\n  ground truth (this photo still has GPS): true elevation {true_el:.1f}°, "
+                 f"estimate off by {t['error']:+.1f}° ({t['z']:+.1f}σ, ~{t['miss_km']:.0f} km)", ok, color))
+        if args.log:
+            with open(args.log, "a") as f:
+                f.write(_json.dumps({"photo": args.photo, "z": t["z"], "error": t["error"],
+                                     "sigma": m.sigma, "source": m.gravity_source,
+                                     "auto": bool(args.auto)}) + "\n")
+    if args.geojson:
+        la, lo, pw = post["grid"]
+        feats = [{"type": "Feature", "properties": {"p": round(float(c), 6)},
+                  "geometry": {"type": "Point", "coordinates": [round(float(b), 2), round(float(a), 2)]}}
+                 for a, b, c in zip(la[:8000], lo[:8000], pw[:8000])]
+        with open(args.geojson, "w") as f:
+            _json.dump({"type": "FeatureCollection", "features": feats}, f)
+        print(_c(f"  wrote the 95% region ({len(feats)} cells) -> {args.geojson}", DIM, color))
+    return 0
+
+
+def _sun_report(path, color):
+    import json as _json
+    import numpy as np
+    rows = [_json.loads(ln) for ln in open(path) if ln.strip()]
+    if not rows:
+        sys.exit("log is empty")
+    z = np.array([r["z"] for r in rows])
+    err = np.array([r["error"] for r in rows])
+    print(_c(f"  {len(rows)} photo(s) with known location", BOLD, color))
+    print(f"  mean error {err.mean():+.2f}° (bias), typical miss {np.abs(err).mean():.2f}° "
+          f"(~{np.abs(err).mean() * 111:.0f} km)")
+    c68, c95 = (np.abs(z) <= 1).mean(), (np.abs(z) <= 1.96).mean()
+    print(f"  truth inside the 68% range: {c68:.0%} (want ~68%)   inside the 95% range: {c95:.0%} (want ~95%)")
+    k = float(np.sqrt((z ** 2).mean()))
+    if len(rows) < 20:
+        print(_c("  too few photos to judge calibration; aim for 20+", DIM, color))
+    elif k > 1.25:
+        print(_c(f"  the meter is overconfident: error bars should be ~{k:.1f}x wider", "\033[33m", color))
+    elif k < 0.8:
+        print(_c(f"  the meter is underconfident: error bars could be ~{1 / k:.1f}x tighter", "\033[36m", color))
+    else:
+        print(_c("  the meter is well calibrated", "\033[32m", color))
+    return 0
+
+
 def cmd_sun(args):
     import json as _json
     import numpy as np
+    if args.picker:
+        from . import shadow as SH
+        out = SH.write_picker(args.picker, args.picker + ".picker.html")
+        print(f"  open {out} in a browser, click base / top / shadow tip, and copy the command it gives you")
+        return 0
+    if args.report:
+        return _sun_report(args.report, color_enabled(sys.stdout, args.no_color))
     from . import sun as S
     color = color_enabled(sys.stdout, args.no_color)
-    when = _photo_time(args.photo) if args.photo else _parse_time(args.time) if args.time else None
+    when = _parse_time(args.time) if args.time else _photo_time(args.photo) if args.photo else None
     if when is None:
         sys.exit("give --time or --photo")
     from datetime import timezone as _tz
     print(_c(f"  time: {when.isoformat()}  (UTC {when.astimezone(_tz.utc):%Y-%m-%d %H:%M})", DIM, color))
+    if args.object or args.auto:
+        return _sun_measure(args, when, color)
     if args.where:
         lat, lon = (float(v) for v in args.where.split(","))
         el, az = S.solar_position(when, lat, lon)
@@ -524,9 +707,25 @@ def _main(argv=None):
     k.set_defaults(fn=cmd_camera)
 
     g = sub.add_parser("sun", description=SUN_DESC, epilog=SUN_EPILOG)
-    src = g.add_mutually_exclusive_group()
-    src.add_argument("--photo", metavar="FILE", help="read the capture time from a photo's EXIF")
-    src.add_argument("--time", metavar="ISO", help="capture time with UTC offset")
+    g.add_argument("--photo", metavar="FILE", help="the photo (capture time, lens, size from EXIF)")
+    g.add_argument("--time", metavar="ISO", help="capture time with UTC offset (overrides EXIF)")
+    a = g.add_argument_group("measure the shadow in the photo (perspective-corrected, with odds)")
+    a.add_argument("--picker", metavar="FILE",
+                   help="write a click-to-mark HTML page for this photo, then exit")
+    a.add_argument("--object", action="append", metavar="BX,BY,TX,TY,SX,SY",
+                   help="pixels of an object's base, top and shadow tip (repeat for more objects)")
+    a.add_argument("--horizon", metavar="X1,Y1,X2,Y2", help="two pixels on the horizon")
+    a.add_argument("--auto", nargs="?", const="ollama", choices=["ollama", "anthropic"],
+                   help="let a vision model find the points (local Ollama by default)")
+    a.add_argument("--scene-model", metavar="NAME", help="model override for --auto")
+    a.add_argument("--heading", type=float, metavar="DEG",
+                   help="compass direction the camera faced (read from EXIF when present)")
+    a.add_argument("--focal-35", type=float, metavar="MM", help="35 mm-equivalent focal length")
+    a.add_argument("--size", metavar="WxH", help="image size, if not using --photo")
+    a.add_argument("--samples", type=int, default=3000, help="Monte Carlo samples (default 3000)")
+    a.add_argument("--log", metavar="FILE",
+                   help="append estimate-vs-GPS-truth results here (for photos that have GPS)")
+    a.add_argument("--report", metavar="FILE", help="summarize a --log file: is the meter honest?")
     g.add_argument("--shadow-ratio", metavar="H:L", help="object height : shadow length")
     g.add_argument("--elevation", type=float, metavar="DEG", help="sun elevation, if known")
     g.add_argument("--shadow-bearing", type=float, metavar="DEG",
