@@ -137,3 +137,24 @@ def test_auto_points_mocked(monkeypatch):
     m = sh.estimate(got["objects"], 1568, 1176, sc.f35, horizon=got["horizon"], n=300)
     assert abs(m.elevation - 22.8) < 0.5
     assert scene.PROMPT.startswith("You are an OPSEC reviewer")  # prompt restored
+
+
+def test_two_shadows_intersect_near_truth(tmp_path, capsys):
+    from unredact_tools import sun
+    from unredact_tools.cli import main
+    am = WHEN.replace(hour=10, minute=0)
+    files = []
+    for name, t in (("pm", WHEN), ("am", am)):
+        el, _ = sun.solar_position(t, 41.1, -80.65)
+        f = tmp_path / f"{name}.json"
+        f.write_text(json.dumps({"time": t.isoformat(), "elevation": el, "sigma": 1.5}))
+        files.append(str(f))
+    single = sh.posterior(WHEN, sh.saved(sun.solar_position(WHEN, 41.1, -80.65)[0], 1.5))
+    both = sh.posterior(WHEN, sh.saved(sun.solar_position(WHEN, 41.1, -80.65)[0], 1.5),
+                        more=[(am, sh.saved(sun.solar_position(am, 41.1, -80.65)[0], 1.5), None)])
+    assert both["area95_km2"] < single["area95_km2"] / 4
+    assert abs(both["peak"][0] - 41.1) < 1 and abs(both["peak"][1] + 80.65) < 1
+    with pytest.raises(SystemExit) as e:
+        main(["sun", "--combine", *files, "--no-color"])
+    out = capsys.readouterr().out
+    assert e.value.code == 0 and "2 shadow rings cross" in out and "these photos were" in out

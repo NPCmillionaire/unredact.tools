@@ -277,9 +277,23 @@ def cities():
     return _cities
 
 
-def posterior(when, m: Measurement, heading=None, heading_sigma=10.0, use_tz=True) -> dict:
+def saved(elevation, sigma, rel_bearing=None, bearing_sigma=None) -> Measurement:
+    """Rebuild a Measurement from values stored with `sun --save`."""
+    return Measurement(elevation, sigma, np.array([]), [], "saved", 0.0, 0.0, rel_bearing, bearing_sigma)
+
+
+def posterior(when, m: Measurement, heading=None, heading_sigma=10.0, use_tz=True, more=()) -> dict:
     """Where was this taken? Ring geometry plus (if geonamescache is installed) a
-    population-weighted breakdown by country, US state and metro area."""
+    population-weighted breakdown by country, US state and metro area.
+    `more` = extra (when, Measurement, heading) observations from the same place: their
+    likelihoods multiply, so two shadows at different times intersect two rings."""
+    _single = globals()["likelihood"]
+
+    def likelihood(w0, lat, lon, m0, h0, hs):  # product over all observations
+        L = _single(w0, lat, lon, m0, h0, hs)
+        for w2, m2, h2 in more:
+            L = L * _single(w2, lat, lon, m2, h2, hs)
+        return L
     off = when.utcoffset().total_seconds() / 3600
     out = {"ring_width_km": 2 * 1.96 * m.sigma * 111.2,
            "ring_radius_km": (90 - m.elevation) * 111.2, "subsolar": S.subsolar_point(when)}

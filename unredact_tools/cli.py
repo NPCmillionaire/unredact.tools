@@ -344,6 +344,11 @@ measuring automatically (best accuracy):
   $ unredact.tools sun --photo street.jpg --auto  # a vision model finds the points
   results come with odds: where the photo was probably taken, by country and city.
 
+two photos of the same place, hours apart, narrow a band down to an area:
+  $ unredact.tools sun --photo morning.jpg --object ... --save am.json
+  $ unredact.tools sun --photo afternoon.jpg --object ... --save pm.json
+  $ unredact.tools sun --combine am.json pm.json
+
 examples:
   $ unredact.tools sun --photo beach.jpg --shadow-ratio 1:1.8
   $ unredact.tools sun --time 2026-11-10T14:30-05:00 --shadow-ratio 2:3.5 --shadow-bearing 40
@@ -415,6 +420,77 @@ def _bar(p, width=20):
     return "█" * round(p * width) + "░" * (width - round(p * width))
 
 
+def _print_where(post, when, heading, color, n_obs=1):
+    """Probability read-out shared by single-photo and combined measurements."""
+    if post.get("impossible"):
+        print(_c("  no place on Earth matches this shadow at this time: check the timestamp, "
+                 "time zone and points", "\033[33m", color))
+        return 1
+    off = when.utcoffset().total_seconds() / 3600
+    shape = (f"a band ~{post['ring_width_km']:,.0f} km wide, " if n_obs == 1 else
+             f"where {n_obs} shadow rings cross, centred near {post['peak'][0]:.1f}, {post['peak'][1]:.1f}; ")
+    print(f"  95% of the probability: {shape}"
+          f"{post['area95_km2'] / 1e6:.1f} million km² in total "
+          + _c(f"(assumes the UTC{off:+g} time-zone band"
+               + (f" and compass heading {heading:.0f}°" if heading is not None else "") + ")", DIM, color))
+    if heading is None and n_obs == 1:
+        print(_c("  no compass heading, so the shadow gives a ring, not a point "
+                 "(add --heading DEG if you know which way the camera faced)", DIM, color))
+    if post.get("cities") is None and "countries" not in post:
+        print(_c("  install geonamescache for the where-people-live breakdown "
+                 "(pip install 'unredact-tools[geo]')", DIM, color))
+    elif post.get("countries"):
+        print(_c("\n  WHERE (weighted by where people live)", BOLD, color))
+        for name, pr in post["countries"][:4]:
+            if pr >= 0.01:
+                print(f"    {pr:5.0%} {_bar(pr)} {name}")
+        if post["states"] and post["countries"][0][0] == "United States":
+            print("    US states: " + ", ".join(f"{a} {pr:.0%}" for a, pr in post["states"][:4] if pr >= 0.01))
+        print(_c("  most likely areas (city + 150 km)", BOLD, color))
+        for name, country, admin, pr, la, lo in post["metros"]:
+            if pr >= 0.005:
+                where = f"{name}, {admin}" if admin else f"{name}, {country}"
+                print(f"    {pr:5.0%} {_bar(pr)} {where}  " + _c(f"({la:.1f}, {lo:.1f})", DIM, color))
+        top = post["countries"][0]
+        what = "this photo was" if n_obs == 1 else "these photos were"
+        print(f"\n  {_c(f'{top[1]:.0%} chance {what} taken in {top[0]}', BOLD, color)}"
+              + (f"; {post['metros'][0][3]:.0%} near {post['metros'][0][0]}" if post["metros"] else ""))
+    return 0
+
+
+def _sun_combine(paths, args, color):
+    """Several photos from the same place at different times: multiply their evidence."""
+    import json as _json
+    from datetime import datetime as _dt
+    from . import shadow as SH
+    if len(paths) < 2:
+        sys.exit("--combine needs two or more files written by `sun --save`")
+    obs = []
+    for pth in paths:
+        d = _json.load(open(pth))
+        obs.append((_dt.fromisoformat(d["time"]),
+                    SH.saved(d["elevation"], d["sigma"], d.get("rel_bearing"), d.get("bearing_sigma")),
+                    d.get("heading")))
+        print(_c(f"  {pth}: {d['time']}  elevation {d['elevation']:.1f}° ± {d['sigma']:.1f}°", DIM, color))
+    span = max(o[0] for o in obs) - min(o[0] for o in obs)
+    if span.total_seconds() < 3600:
+        print(_c("  ! these were taken less than an hour apart: the rings barely differ, so "
+                 "combining adds little. Hours apart (or different days) works best.", "\033[33m", color))
+    when, m, heading = obs[0]
+    post = SH.posterior(when, m, heading, 10.0, more=obs[1:])
+    rc = _print_where(post, when, heading, color, n_obs=len(obs))
+    if not rc and not post.get("impossible"):
+        print(f"  map: https://www.google.com/maps?q={post['peak'][0]:.2f},{post['peak'][1]:.2f}")
+        if args.geojson:
+            la, lo, pw = post["grid"]
+            feats = [{"type": "Feature", "properties": {"p": round(float(c), 6)},
+                      "geometry": {"type": "Point", "coordinates": [round(float(b), 2), round(float(a), 2)]}}
+                     for a, b, c in zip(la[:8000], lo[:8000], pw[:8000])]
+            with open(args.geojson, "w") as f:
+                _json.dump({"type": "FeatureCollection", "features": feats}, f)
+    return rc
+
+
 def _sun_measure(args, when, color):
     """Automatic / point-based shadow measurement with a probability read-out."""
     import json as _json
@@ -471,36 +547,15 @@ def _sun_measure(args, when, color):
           + _c(f"({len(objects)} object(s): {per}; camera tilt from {m.gravity_source}, "
                f"pitch {m.pitch:+.0f}°)", DIM, color))
     post = SH.posterior(when, m, heading, noise.heading)
-    if post.get("impossible"):
-        print(_c("  no place on Earth matches this shadow at this time: check the timestamp, "
-                 "time zone and points", "\033[33m", color))
+    if _print_where(post, when, heading, color):
         return 1
-    off = when.utcoffset().total_seconds() / 3600
-    print(f"  95% of the probability: a band ~{post['ring_width_km']:,.0f} km wide, "
-          f"{post['area95_km2'] / 1e6:.1f} million km² in total "
-          + _c(f"(assumes the UTC{off:+g} time-zone band"
-               + (f" and compass heading {heading:.0f}°" if heading is not None else "") + ")", DIM, color))
-    if heading is None:
-        print(_c("  no compass heading, so the shadow gives a ring, not a point "
-                 "(add --heading DEG if you know which way the camera faced)", DIM, color))
-    if post.get("cities") is None and "countries" not in post:
-        print(_c("  install geonamescache for the where-people-live breakdown "
-                 "(pip install 'unredact-tools[geo]')", DIM, color))
-    elif post.get("countries"):
-        print(_c("\n  WHERE (weighted by where people live)", BOLD, color))
-        for name, pr in post["countries"][:4]:
-            if pr >= 0.01:
-                print(f"    {pr:5.0%} {_bar(pr)} {name}")
-        if post["states"] and post["countries"][0][0] == "United States":
-            print("    US states: " + ", ".join(f"{a} {pr:.0%}" for a, pr in post["states"][:4] if pr >= 0.01))
-        print(_c("  most likely areas (city + 150 km)", BOLD, color))
-        for name, country, admin, pr, la, lo in post["metros"]:
-            if pr >= 0.005:
-                where = f"{name}, {admin}" if admin else f"{name}, {country}"
-                print(f"    {pr:5.0%} {_bar(pr)} {where}  " + _c(f"({la:.1f}, {lo:.1f})", DIM, color))
-        top = post["countries"][0]
-        print(f"\n  {_c(f'{top[1]:.0%} chance this photo was taken in {top[0]}', BOLD, color)}"
-              + (f"; {post['metros'][0][3]:.0%} near {post['metros'][0][0]}" if post["metros"] else ""))
+    if args.save:
+        with open(args.save, "w") as f:
+            _json.dump({"time": when.isoformat(), "elevation": m.elevation, "sigma": m.sigma,
+                        "rel_bearing": m.rel_bearing, "bearing_sigma": m.bearing_sigma,
+                        "heading": heading, "photo": args.photo}, f)
+        print(_c(f"  saved this measurement -> {args.save} (combine two or more with "
+                 "`sun --combine`)", DIM, color))
     if truth:
         t = SH.truth_check(when, truth[0], truth[1], m)
         ok = "\033[32m" if t["within_95"] else "\033[31m"
@@ -558,6 +613,8 @@ def cmd_sun(args):
         return 0
     if args.report:
         return _sun_report(args.report, color_enabled(sys.stdout, args.no_color))
+    if args.combine:
+        return _sun_combine(args.combine, args, color_enabled(sys.stdout, args.no_color))
     from . import sun as S
     color = color_enabled(sys.stdout, args.no_color)
     when = _parse_time(args.time) if args.time else _photo_time(args.photo) if args.photo else None
@@ -723,6 +780,10 @@ def _main(argv=None):
     a.add_argument("--focal-35", type=float, metavar="MM", help="35 mm-equivalent focal length")
     a.add_argument("--size", metavar="WxH", help="image size, if not using --photo")
     a.add_argument("--samples", type=int, default=3000, help="Monte Carlo samples (default 3000)")
+    a.add_argument("--save", metavar="FILE", help="save this measurement for --combine")
+    a.add_argument("--combine", nargs="+", metavar="FILE",
+                   help="combine saved measurements of the SAME place at different times: "
+                        "their rings intersect, which narrows a band down to an area")
     a.add_argument("--log", metavar="FILE",
                    help="append estimate-vs-GPS-truth results here (for photos that have GPS)")
     a.add_argument("--report", metavar="FILE", help="summarize a --log file: is the meter honest?")

@@ -208,6 +208,7 @@ How the odds are made:
 - **Error bars** come from 3,000 simulated re-measurements with realistic noise: point placement, focal length, camera tilt, objects that lean, ground that slopes.
 - **Places** are scored by how well the sun there matches the measurement, then weighted by the photo's time-zone band and by population (an offline list of ~34,000 cities), on the assumption that photos are taken where people live.
 - **A compass heading** (EXIF `GPSImgDirection` or `--heading`) narrows the ring toward one area. Without it, a single shadow can't give a point, and the output says so.
+- **Two photos beat one.** Measure two photos of the same place taken hours apart, `--save` each, then `sun --combine a.json b.json`. Each shadow gives its own ring and the place must lie where they cross. In a simulated test this cut the 95% region from 8.9 to 1.1 million km² and centred it on the true city.
 - **Checking the meter:** on photos that still have GPS, the tool prints how far off it was. `--log results.jsonl` records each result, and `sun --report results.jsonl` tells you whether the 95% ranges really contain the truth 95% of the time.
 
 The older manual inputs still work. Without a shadow bearing you get a circle of possible places, narrowed to the photo's time zone. Adding the bearing narrows it to one area. `--geojson` writes every candidate point for a map. `scan` flags photos whose EXIF time includes a time zone, since that's what makes this attack possible.
