@@ -94,6 +94,7 @@ This installs three equivalent commands: **`unredact.tools`**, the short **`unre
 | Audio / video | `brew install ffmpeg` · `apt install ffmpeg` | MP4, MOV, MKV, MP3, FLAC… |
 | **Visual checks** | `pip install -e ".[vision]"` + `brew install tesseract` · `apt install tesseract-ocr` | OCR, QR/barcodes, plates, faces, pixelation, printer dots, camera ID |
 | AI scene review *(optional)* | [Ollama](https://ollama.com) + `ollama pull qwen3-vl:8b` | `scan --scene`: reflections, landmarks, regional clues |
+| Web app | `pip install -e ".[web]"` | `unredact.tools web`: drag-and-drop UI in the browser |
 | Everything | `pip install -e ".[all]"` | all of the above |
 | Dev / tests | `pip install -e ".[dev]"` | pytest + leaky-fixture generators |
 
@@ -209,6 +210,32 @@ The exit code is `0` when nothing high or critical is found and `2` when somethi
 - run: pip install git+https://github.com/NPCmillionaire/unredact.tools
 - run: unredact.tools scan public/**/*.{pdf,jpg,png,docx} --no-color
 ```
+
+---
+
+## 🌐 Web app
+
+The same scan and sanitize, in a browser: drop files, read the **"what this file gives away"** report, download recovered artifacts, pick visual-redaction options, and download the clean copy.
+
+```bash
+pip install -e ".[web,vision]"
+unredact.tools web                 # http://127.0.0.1:8000
+```
+
+Or with Docker (ffmpeg, tesseract and every extra included):
+
+```bash
+docker build -t unredact .
+docker run --rm -p 127.0.0.1:8000:8000 unredact
+```
+
+- Each upload goes to a private temp folder that is **deleted before the response is sent**. Nothing is stored, filenames are never logged, and access logging is off.
+- Strict CSP (no third-party scripts, fonts or trackers), `no-store` caching, `no-referrer`.
+- Options it suggests come from the scan: a photo with a readable plate gets "Black out license plates" pre-ticked. If something survives sanitizing, the fix is turned on for the next run.
+- Env: `UNREDACT_MAX_MB` (upload limit, default 50) and `UNREDACT_WORKERS` (concurrent jobs, default 2).
+
+> [!IMPORTANT]
+> Run it on your own machine for sensitive files. A hosted instance means uploading the file to someone else's server, which is exactly what this tool warns you about. If you do host it, put it behind HTTPS.
 
 ---
 
@@ -383,6 +410,7 @@ unredact_tools/
 ├── printerdots.py  DocuColor tracking-dot extraction + decoding
 ├── sun.py        NOAA solar position · shadow geolocation
 ├── scene.py      opt-in AI scene review (Ollama / Anthropic)
+├── web/          FastAPI app + static UI (`unredact.tools web`)
 ├── banner.py     help banner + OPSEC tip box
 └── tips.py       rotating OPSEC advice
 ```
@@ -431,6 +459,7 @@ unredact_tools/
 - [ ] Automatic shadow measurement (find a vertical object and its shadow without user input)
 - [ ] Decoders for other printer dot layouts (Canon, HP, Epson; see DEDA's research)
 - [ ] ODF and camera RAW support
+- [x] Web app (`unredact.tools web`, Docker image)
 - [ ] Browser/WASM version on unredact.tools (files never leave the device)
 - [ ] unredact.me integration to cross-reference serials, usernames, and document IDs
 - [ ] Batch API for newsrooms and law firms

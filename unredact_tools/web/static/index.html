@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>unredact.tools — see what your files give away</title>
+<meta name="description" content="Drop a photo, PDF or Office file. See the GPS, serials, authors, failed redactions and hidden text it leaks. Download a clean copy.">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav>
+    <a href="https://github.com/NPCmillionaire/unredact.tools" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>See what your files <span class="hl">give away</span>.</h1>
+    <p class="lede">GPS coordinates, device serials, author names, black boxes that don't actually hide anything, deleted tracked changes, printer tracking dots. Drop a file to see what it leaks, then download a copy with all of it removed.</p>
+  </section>
+
+  <section id="drop" class="drop" tabindex="0" role="button" aria-label="Choose files to scan">
+    <input id="pick" type="file" multiple hidden>
+    <div class="drop-inner">
+      <div class="drop-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="44" height="44"><path d="M12 6h17l9 9v27H12z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M29 6v9h9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><rect x="17" y="24" width="16" height="4" fill="currentColor"/><rect x="17" y="32" width="10" height="4" fill="currentColor"/></svg>
+      </div>
+      <p class="drop-title"><strong>Drop files here</strong> or click to choose</p>
+      <p class="drop-sub" id="supports">JPEG · PNG · HEIC · WebP · TIFF · PDF · DOCX · XLSX · PPTX · MP4 · MOV · MP3 · text</p>
+    </div>
+  </section>
+
+  <div class="controls">
+    <label class="toggle"><input type="checkbox" id="opt-fast"> <span>Fast scan</span> <small>metadata only, skip OCR / faces / codes / dots</small></label>
+    <label class="toggle"><input type="checkbox" id="opt-extract" checked> <span>Recover artifacts</span> <small>thumbnails, old PDF revisions, attachments</small></label>
+  </div>
+
+  <div class="privacy">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    <span>Files are processed in a temporary folder that is deleted before the response is sent. Nothing is stored or logged. For anything truly sensitive, run it yourself: <code>pip install "unredact-tools[web]" &amp;&amp; unredact.tools web</code></span>
+  </div>
+
+  <section id="results" aria-live="polite"></section>
+
+  <section class="tip" id="tip-box" hidden>
+    <span class="tip-label">OPSEC TIP</span>
+    <p id="tip"></p>
+    <button class="link" id="tip-next" type="button">another</button>
+  </section>
+</main>
+
+<footer>
+  <span>unredact.tools <span id="ver"></span></span>
+  <span>Original files are never modified. Every clean copy is re-scanned before you get it.</span>
+</footer>
+
+<template id="card-tpl">
+  <article class="card">
+    <header class="card-head">
+      <div class="file">
+        <span class="fname"></span>
+        <span class="meta"></span>
+      </div>
+      <div class="counts"></div>
+    </header>
+    <div class="status"><span class="spinner"></span><span class="status-text">Scanning…</span></div>
+    <div class="body" hidden>
+      <div class="verdict"></div>
+      <section class="gives" hidden>
+        <h3>What this file gives away</h3>
+        <dl class="facts"></dl>
+      </section>
+      <section class="findings-wrap" hidden>
+        <div class="row">
+          <h3>Findings</h3>
+          <label class="mini"><input type="checkbox" class="show-info"> show info-level</label>
+        </div>
+        <ol class="findings"></ol>
+      </section>
+      <section class="artifacts" hidden>
+        <h3>Recovered artifacts</h3>
+        <ul class="art-list"></ul>
+      </section>
+      <ul class="errors"></ul>
+      <section class="clean">
+        <h3>Clean it</h3>
+        <form class="clean-form">
+          <div class="opts pdf-only" hidden>
+            <span class="opt-label">PDF rebuild</span>
+            <label><input type="radio" name="pdf_mode" value="raster" checked> Flatten to images <small>nothing survives but pixels</small></label>
+            <label><input type="radio" name="pdf_mode" value="text"> Keep selectable text <small>burns in real redactions</small></label>
+          </div>
+          <div class="opts visual-only" hidden>
+            <span class="opt-label">Visual redaction</span>
+            <label><input type="checkbox" name="blur_faces"> Blur faces</label>
+            <label><input type="checkbox" name="redact_codes"> Black out QR codes / barcodes</label>
+            <label><input type="checkbox" name="redact_text"> Black out sensitive text (OCR)</label>
+            <label><input type="checkbox" name="redact_plates"> Black out license plates</label>
+            <label><input type="checkbox" name="desync"> Break camera sensor fingerprint</label>
+            <label><input type="checkbox" name="keep_dots"> Keep printer dots</label>
+            <label class="region"><span>Black out regions</span> <input type="text" name="regions" placeholder="X,Y,W,H; X,Y,W,H" spellcheck="false" autocomplete="off"></label>
+          </div>
+          <button type="submit" class="btn">Sanitize</button>
+        </form>
+        <div class="clean-result" hidden></div>
+      </section>
+    </div>
+  </article>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

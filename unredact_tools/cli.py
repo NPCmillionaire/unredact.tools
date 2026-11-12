@@ -228,7 +228,7 @@ class Parser(argparse.ArgumentParser):
                 return (c("  $ ", DIM, on) + c(cmd, "\033[36m", on) +
                         (c("  #" + note, DIM, on) if note else ""))
             text = re.sub(r"(?m)^(  \$ )(.*)$", example, text)
-            text = re.sub(r"(?m)^(  )(scan|sanitize|camera-id|sun|tip)(\s)", lambda m: m.group(1) +
+            text = re.sub(r"(?m)^(  )(scan|sanitize|camera-id|sun|tip|web)(\s)", lambda m: m.group(1) +
                           c(m.group(2), BOLD, on) + m.group(3), text)
         file.write(text)
 
@@ -242,6 +242,7 @@ commands:
   camera-id  link photos to the camera that took them (sensor fingerprint)
   sun        geolocate a photo from its timestamp and a shadow
   tip        print a random OPSEC tip (--all for the full list)
+  web        run the web app (drag-and-drop scan + sanitize in a browser)
 
 run `unredact.tools <command> --help` for that command's options."""
 
@@ -252,6 +253,7 @@ examples:
   $ unredact.tools sanitize memo.docx court_filing.pdf
   $ unredact.tools sanitize screenshot.png --visual
   $ unredact.tools camera-id compare known.jpg anonymous.jpg
+  $ unredact.tools web                      # http://127.0.0.1:8000
 
 supports:
   images (JPEG PNG WebP TIFF HEIC) · PDF · DOCX XLSX PPTX · audio/video (ffmpeg) · text
@@ -459,6 +461,19 @@ def cmd_tip(args):
     return 0
 
 
+def cmd_web(args):
+    try:
+        from .web.app import serve
+    except ImportError:
+        sys.exit('the web app needs: pip install "unredact-tools[web]"')
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print("note: listening beyond localhost; put it behind HTTPS before exposing it",
+              file=sys.stderr)
+    print(f"unredact.tools web on http://{args.host}:{args.port}  (ctrl-c to stop)")
+    serve(args.host, args.port)
+    return 0
+
+
 def main(argv=None):
     try:
         _main(argv)
@@ -542,6 +557,12 @@ def _main(argv=None):
     t.add_argument("--all", action="store_true", help="list every tip")
     t.add_argument("--no-color", action="store_true", help="disable colors")
     t.set_defaults(fn=cmd_tip)
+
+    w = sub.add_parser("web", description="Run the web app: drag files into a browser to scan "
+                       "and sanitize them. Uploads go to a temp dir that is deleted per request.")
+    w.add_argument("--host", default="127.0.0.1", help="bind address (default 127.0.0.1)")
+    w.add_argument("--port", type=int, default=8000, help="port (default 8000)")
+    w.set_defaults(fn=cmd_web)
 
     args = ap.parse_args(argv)
     if not args.cmd:
