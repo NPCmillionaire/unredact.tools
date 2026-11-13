@@ -33,8 +33,13 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           unredact.tools --version
           unredact tip --no-color
-          python3 -m pip install -q pillow piexif
-          python3 -c "from PIL import Image; import piexif; Image.new('RGB',(64,64)).save('t.jpg', exif=piexif.dump({'0th':{271:b'Apple'},'Exif':{},'GPS':{1:b'N',2:((41,1),(6,1),(0,1)),3:b'W',4:((80,1),(39,1),(0,1))},'1st':{}}))"
+          # build a GPS-tagged test photo with the installed tool's own Python
+          # (Homebrew Python refuses global pip installs, PEP 668)
+          "$HOME/.local/share/unredact.tools/venv/bin/python" -c "
+          from PIL import Image
+          e = Image.Exif(); e[0x010F] = 'Apple'
+          e[0x8825] = {1: 'N', 2: (41.0, 6.0, 0.0), 3: 'W', 4: (80.0, 39.0, 0.0)}
+          Image.new('RGB', (64, 64)).save('t.jpg', exif=e)"
           unredact.tools scan t.jpg --no-color | tee out.txt
           grep -q "GPS" out.txt
           unredact.tools sanitize t.jpg --no-color
