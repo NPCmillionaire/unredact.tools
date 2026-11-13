@@ -76,6 +76,24 @@ Good tools exist (ExifTool, mat2, Dangerzone), but each one does a single job, a
 
 ## 📦 Install
 
+**One line** (macOS and Linux: Homebrew, apt, dnf, pacman, zypper, apk):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NPCmillionaire/unredact.tools/main/install.sh | bash
+```
+
+The installer finds Python 3.10+, installs `tesseract` and `ffmpeg` (it asks first), and puts everything in its own virtualenv under `~/.local/share/unredact.tools`. Nothing touches your system Python. It links `unredact.tools`, `unredact` and `unredact-file` into `~/.local/bin`, then checks which features are working.
+
+```bash
+curl -fsSL .../install.sh | bash -s -- --with-ai     # + Ollama and the vision model for --scene / sun --auto
+curl -fsSL .../install.sh | bash -s -- --minimal     # metadata only, no OCR/vision
+curl -fsSL .../install.sh | bash -s -- --uninstall
+```
+
+Re-running it updates to the latest version. The installer is tested on clean Ubuntu and macOS machines in CI on every push.
+
+**From source:**
+
 ```bash
 git clone https://github.com/NPCmillionaire/unredact.tools
 cd unredact.tools
