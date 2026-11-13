@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Privacy · unredact.tools</title>
+<meta name="description" content="What happens to the files you scan on unredact.tools.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav aria-label="Main">
+    <a href="/#how">How it works</a>
+    <a href="/pricing">Pricing</a>
+    <a href="https://github.com/NPCmillionaire/unredact.tools">GitHub</a>
+  </nav>
+</header>
+
+<main class="prose">
+  <p class="eyebrow">Privacy</p>
+  <h1>What happens to your files</h1>
+  <p>Short version: we look at the file long enough to answer you, then it's gone.</p>
+
+  <h2>Files you upload</h2>
+  <ul>
+    <li>Each file is written to a private temporary folder on the scanning server, processed, and the folder is deleted before the response is sent back to you.</li>
+    <li>We don't keep copies, thumbnails, hashes or reports. The clean copy is sent straight to your browser and isn't stored.</li>
+    <li>Filenames are never logged. The scanning server has access logging turned off.</li>
+  </ul>
+
+  <h2>What we collect</h2>
+  <ul>
+    <li>No cookies, no analytics, no tracking pixels, no third-party scripts or fonts.</li>
+    <li>This site is served by Cloudflare, which handles the connection and can see traffic passing through it. Cloudflare's own privacy policy applies to that.</li>
+  </ul>
+
+  <h2>AI features</h2>
+  <p>AI features aren't live yet. When they are, they'll only run when you press an AI button, only on that file, with metadata stripped first, and this page will name the exact model provider.</p>
+
+  <h2>Payments</h2>
+  <p>Paid features aren't live yet. When they are, you'll get a token instead of an account. We'll store a hash of the token and its balance, and nothing that links it to you or to your files.</p>
+
+  <h2>Don't want to trust any server?</h2>
+  <p>Then don't. The whole tool is <a href="https://github.com/NPCmillionaire/unredact.tools">open source</a> and runs offline: <code>pip install "unredact-tools[web]"</code>, then <code>unredact.tools web</code>.</p>
+</main>
+
+<footer>
+  <span>unredact.tools · Cloudsculpting Labs</span>
+  <nav aria-label="Footer">
+    <a href="/">Scan a file</a>
+    <a href="/pricing">Pricing</a>
+    <a href="https://github.com/NPCmillionaire/unredact.tools">GitHub</a>
+  </nav>
+</footer>
+</body>
+</html>

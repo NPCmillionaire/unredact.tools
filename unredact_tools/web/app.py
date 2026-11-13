@@ -10,6 +10,8 @@ never logged, and access logging is off. Responses are marked no-store.
 Env:
   UNREDACT_MAX_MB    max upload size in MB (default 50)
   UNREDACT_WORKERS   concurrent scans/sanitizes (default 2; OCR is CPU-heavy)
+  UNREDACT_CORS      comma-separated origins allowed to call the API from another
+                     site, e.g. https://unredact.tools (for the Cloudflare Pages site)
 """
 from __future__ import annotations
 
@@ -24,6 +26,7 @@ from importlib import resources
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -49,6 +52,12 @@ HINTS = {
 
 app = FastAPI(title="unredact.tools", version=__version__, docs_url=None, redoc_url=None,
               openapi_url=None)
+
+
+CORS = [o.strip() for o in os.environ.get("UNREDACT_CORS", "").split(",") if o.strip()]
+if CORS:
+    app.add_middleware(CORSMiddleware, allow_origins=CORS, allow_methods=["GET", "POST"],
+                       allow_headers=["*"], max_age=600)
 
 
 @app.middleware("http")
