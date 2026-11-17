@@ -151,6 +151,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .link { background: none; border: 0; padding: 0; color: var(--dim); font: 12px var(--mono); cursor: pointer; text-decoration: underline; }
 
 footer { max-width: 920px; margin: 0 auto; padding: 22px 20px 40px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--dim); font: 12px var(--mono); border-top: 1px solid var(--line); }
+footer a { color: var(--dim); text-decoration: none; }
+footer a:hover { color: var(--text); text-decoration: underline; }
+footer .onion { word-break: break-all; }
 
 @media (max-width: 620px) {
   .facts { grid-template-columns: 1fr; }
