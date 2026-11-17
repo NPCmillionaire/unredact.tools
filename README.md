@@ -10,7 +10,7 @@
 ![formats](https://img.shields.io/badge/formats-images%20·%20PDF%20·%20Office%20·%20media%20·%20text-6f42c1)
 ![version](https://img.shields.io/badge/version-0.2.0-555)
 
-[**Install**](#-install) · [**Usage**](#-usage) · [**What it detects**](#-what-it-detects) · [**How sanitizing works**](#-how-sanitizing-works) · [**Roadmap**](#-roadmap)
+[**Install**](#-install) · [**Usage**](#-usage) · [**Tor**](#-tor-onion-service) · [**What it detects**](#-what-it-detects) · [**How sanitizing works**](#-how-sanitizing-works) · [**Roadmap**](#-roadmap)
 
 <sub>Local-first OPSEC for files: metadata, hidden content, redactions, pixels, prints and shadows.</sub>
 
@@ -236,6 +236,17 @@ docker run --rm -p 127.0.0.1:8000:8000 unredact
 
 > [!IMPORTANT]
 > Run it on your own machine for sensitive files. A hosted instance means uploading the file to someone else's server, which is exactly what this tool warns you about. If you do host it, put it behind HTTPS.
+
+---
+
+## 🧅 Tor onion service
+
+The scanner is also served as a Tor hidden service, behind a front end built for exactly this threat model: **no JavaScript, no cookies, no external assets** — one self-contained HTML page per request, sized for slow circuits, readable in `w3m` and `lynx`.
+
+* <http://unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion/> — primary
+* <http://6ct7gmlmwzrih3yhn2fqhtj4lbhfllkhssk3p6z6dt2cax3ppv4wclid.onion/> — legacy mirror
+
+The clearnet site sends an `Onion-Location` header, so Tor Browser offers the onion automatically. Front-end source: [unredact-onion](https://github.com/NPCmillionaire/unredact-onion); spare vanity keys for future mirrors are documented there.
 
 ---
 
