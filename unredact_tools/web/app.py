@@ -231,6 +231,11 @@ def contact():
     return FileResponse(str(STATIC / "contact.html"))
 
 
+@app.get("/donate")
+def donate():
+    return FileResponse(str(STATIC / "donate.html"))
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 

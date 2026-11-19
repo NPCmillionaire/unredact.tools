@@ -49,7 +49,7 @@ def test_index_and_headers():
 
 
 def test_about_and_contact():
-    for path, text in (("/about", "What it does"), ("/contact", "mailto:")):
+    for path, text in (("/about", "What it does"), ("/contact", "mailto:"), ("/donate", "bc1q8hdtgw3f8fan587ey3jqy073d0wv2k07vu98d9")):
         r = client.get(path)
         assert r.status_code == 200 and text in r.text
         assert r.headers["cache-control"] == "no-store"
