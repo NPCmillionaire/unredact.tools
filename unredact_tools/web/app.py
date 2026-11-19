@@ -64,7 +64,7 @@ GUIDE_DIR = resources.files(__package__) / "guides"
 SITE = "https://unredact.tools"  # canonical origin for the sitemap and link tags
 
 # Search landing pages: slug -> head and hero text; the body is guides/<slug>.html.
-# Deliberately not linked from the main pages; search engines find them via the sitemap.
+# The main pages reach them only through the /guides hub linked in the footer.
 GUIDES = {
     "remove-photo-metadata": {
         "title": "Remove GPS location and EXIF metadata from a photo · unredact.tools",
@@ -421,11 +421,20 @@ def robots():
 
 @app.get("/sitemap.xml")
 def sitemap():
-    paths = ["/", "/about", "/contact", "/donate", *(f"/{s}" for s in GUIDES)]
+    paths = ["/", "/about", "/contact", "/donate", "/guides", *(f"/{s}" for s in GUIDES)]
     urls = "".join(f"  <url><loc>{SITE}{p}</loc></url>\n" for p in paths)
     return Response('<?xml version="1.0" encoding="UTF-8"?>\n'
                     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                     f"{urls}</urlset>\n", media_type="application/xml")
+
+
+@app.get("/guides")
+def guides():
+    items = "".join(
+        f'    <li><a href="/{slug}">{html.escape(g["title"].removesuffix(" · unredact.tools"))}</a>'
+        f'<span>{html.escape(g["description"])}</span></li>\n' for slug, g in GUIDES.items())
+    page = (GUIDE_DIR / "_index.html").read_text(encoding="utf-8")
+    return HTMLResponse(page.replace("{{list}}", items))
 
 
 @app.get("/{slug}")

@@ -172,6 +172,11 @@ footer .onion { word-break: break-all; }
 .prose ul { padding-left: 20px; }
 .prose li { margin: 6px 0; }
 .prose a { color: var(--accent); }
+.guide-list { list-style: none; padding: 0 !important; margin: 32px 0 0; }
+.guide-list li { margin: 0; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.guide-list a { display: block; font-size: 18px; font-weight: 600; text-decoration: none; }
+.guide-list a:hover { text-decoration: underline; }
+.guide-list span { display: block; margin-top: 4px; color: var(--muted); }
 .prose table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
 .prose th, .prose td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .prose th { color: var(--muted); font-weight: 600; }

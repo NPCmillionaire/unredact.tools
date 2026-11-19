@@ -60,18 +60,23 @@ def test_robots_and_sitemap():
     assert r.status_code == 200 and "Disallow: /api/" in r.text and "/sitemap.xml" in r.text
     sm = client.get("/sitemap.xml")
     assert sm.status_code == 200 and sm.headers["content-type"].startswith("application/xml")
-    for slug in web.GUIDES:
+    for slug in ("guides", *web.GUIDES):
         assert f"<loc>https://unredact.tools/{slug}</loc>" in sm.text
 
 
-def test_guides_render_and_stay_unlinked():
+def test_guides_reached_only_through_the_hub():
     for slug, g in web.GUIDES.items():
         r = client.get(f"/{slug}")
         assert r.status_code == 200 and "{{" not in r.text
         assert f'<link rel="canonical" href="https://unredact.tools/{slug}">' in r.text
         assert 'id="drop"' in r.text and 'id="card-tpl"' in r.text
+    hub = client.get("/guides")
+    assert hub.status_code == 200 and "{{" not in hub.text
+    assert all(f'href="/{slug}"' in hub.text for slug in web.GUIDES)
     for path in ("/", "/about", "/contact", "/donate"):
-        assert not any(f'href="/{slug}"' in client.get(path).text for slug in web.GUIDES)
+        page = client.get(path).text
+        assert 'href="/guides"' in page
+        assert not any(f'href="/{slug}"' in page for slug in web.GUIDES)
     assert client.get("/no-such-page").status_code == 404
 
 
