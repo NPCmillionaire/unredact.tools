@@ -105,6 +105,7 @@
         report = await api("/api/scan", form);
       } catch (e) { fail(e.message); return; }
       status.hidden = true;
+      showCounts(report.totals);
       render(report);
     }
 
@@ -210,7 +211,7 @@
       fd.append("regions", form.regions.value);
       try {
         const res = await api("/api/sanitize", fd);
-        showScrubbed(res.scrubbed);
+        showCounts(res.totals);
         showClean(res, out, form);
       } catch (e) {
         out.replaceChildren(el("div", { className: "status err", textContent: `✕ ${e.message}` }));
@@ -245,20 +246,22 @@
     return { root, scan, fail };
   }
 
-  function showScrubbed(n) {
-    if (typeof n !== "number") return;  // counter turned off on this server
-    const box = $("#counter");
-    if (n < 1) box.textContent = "No files scrubbed yet. Be the first.";
-    else box.replaceChildren(el("strong", { textContent: n.toLocaleString() }),
-                             ` file${n === 1 ? "" : "s"} scrubbed so far`);
-    box.hidden = false;
+  // Totals stay hidden until they're big enough to mean something.
+  const COUNT_MIN = 100;
+  function showCounts(c) {
+    if (!c || c.checked < COUNT_MIN) return;  // counter off on this server, or still small
+    const part = (n, what) => [el("strong", { textContent: n.toLocaleString() }), ` files ${what}`];
+    const kids = part(c.checked, "checked");
+    if (c.scrubbed >= COUNT_MIN) kids.push(" · ", ...part(c.scrubbed, "scrubbed"));
+    $("#counter").replaceChildren(...kids);
+    $("#counter").hidden = false;
   }
 
   // ---------- boot ----------
   fetch("/api/info").then((r) => r.json()).then((i) => {
     info = i;
     $("#ver").textContent = `v${i.version}`;
-    showScrubbed(i.scrubbed);
+    showCounts(i.totals);
     if (!i.ffmpeg) $("#supports").textContent = $("#supports").textContent.replace(" · MP4 · MOV · MP3", "");
   }).catch(() => {});
   const tip = () => fetch("/api/tip").then((r) => r.json()).then((t) => { $("#tip").textContent = t.tip; $("#tip-box").hidden = false; }).catch(() => {});

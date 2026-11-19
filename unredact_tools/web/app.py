@@ -15,13 +15,14 @@ Env:
   UNREDACT_CONTACT_TO    address the /contact form emails (form is off when unset)
   UNREDACT_CONTACT_FROM  sender address for those emails (default noreply@<host>)
   UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
-  UNREDACT_COUNTER       file holding the running total of files sanitized (off when unset).
-                         It stores that one integer and nothing else.
+  UNREDACT_COUNTER       file holding two running totals, files checked and files sanitized
+                         (off when unset). It stores those two integers and nothing else.
 """
 from __future__ import annotations
 
 import asyncio
 import base64
+import html
 import mimetypes
 import os
 import re
@@ -35,7 +36,8 @@ from importlib import resources
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
+                               RedirectResponse, Response)
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, media, vision
@@ -53,6 +55,54 @@ CONTACT_LIMIT = 5  # messages per sender per hour
 ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total size
 
 STATIC = resources.files(__package__) / "static"
+GUIDE_DIR = resources.files(__package__) / "guides"
+SITE = "https://unredact.tools"  # canonical origin for the sitemap and link tags
+
+# Search landing pages: slug -> head and hero text; the body is guides/<slug>.html.
+# Deliberately not linked from the main pages; search engines find them via the sitemap.
+GUIDES = {
+    "remove-photo-metadata": {
+        "title": "Remove GPS location and EXIF metadata from a photo · unredact.tools",
+        "description": "See the GPS coordinates, camera serial and other EXIF data a photo carries, "
+                       "then download a clean copy with all of it removed. Free, no signup, nothing stored.",
+        "h1": 'Remove the location <span class="hl">from a photo</span>.',
+        "lede": "Drop a photo below to see the GPS coordinates, camera serial number and other "
+                "metadata it carries. Then download a clean copy with all of it removed.",
+    },
+    "check-pdf-redaction": {
+        "title": "Check if a PDF redaction actually worked · unredact.tools",
+        "description": "A black box drawn over text doesn't remove it. Check a redacted PDF for text "
+                       "still readable under the boxes, earlier versions and metadata, then fix it.",
+        "h1": 'Check if a PDF redaction <span class="hl">actually worked</span>.',
+        "lede": "A black box drawn over text doesn't remove the text. Drop a redacted PDF below to "
+                "see whether anything is still readable underneath, then download a copy with real redactions.",
+    },
+    "remove-word-metadata": {
+        "title": "Remove author names, tracked changes and hidden data from Word files · unredact.tools",
+        "description": "Word, Excel and PowerPoint files keep author names, tracked changes, comments "
+                       "and file paths. See what yours carries and download a clean copy.",
+        "h1": 'Remove hidden data <span class="hl">from a Word document</span>.',
+        "lede": "Word files keep author names, every tracked change, comments and file paths long "
+                "after you stop seeing them. Drop a document below to see what yours carries, then "
+                "download a clean copy.",
+    },
+    "find-hidden-text-in-pdf": {
+        "title": "Find hidden text in a PDF · unredact.tools",
+        "description": "Find white-on-white, microscopic and off-page text, hidden layers, earlier "
+                       "versions and invisible watermarks in a PDF.",
+        "h1": 'Find hidden text <span class="hl">in a PDF</span>.',
+        "lede": "PDFs can carry text nobody sees on screen: white on white, shrunk to a dot, placed "
+                "off the page, or left behind in an earlier version of the file. Drop a PDF below to find it.",
+    },
+    "famous-metadata-leaks": {
+        "title": "Real cases where a file gave someone away · unredact.tools",
+        "description": "Failed redactions, GPS-tagged photos and printer tracking dots: real cases "
+                       "where a shared file revealed more than intended, and what would have caught it.",
+        "h1": 'Files that <span class="hl">gave people away</span>.',
+        "lede": "Every one of these was a file someone shared on purpose. What it revealed was an "
+                "accident. Drop a file below to check yours before you send it.",
+    },
+}
 
 # remaining finding title fragment -> sanitize option that fixes it
 HINTS = {
@@ -142,13 +192,13 @@ def info():
         "ffmpeg": media.have_ffmpeg(),
         "ocr": vision.available() and vision.HAVE_OCR,
         "vision": vision.available(),
-        "scrubbed": _count(),
+        "totals": _counts(),
     }
 
 
-def _count(add: int = 0) -> int | None:
-    """Read, and optionally bump, the files-scrubbed total. Locked, since Passenger and
-    uvicorn can run several worker processes against the same file."""
+def _counts(bump: str | None = None) -> dict[str, int] | None:
+    """Read, and optionally bump ("checked" or "scrubbed"), the running totals. Locked,
+    since Passenger and uvicorn can run several worker processes against the same file."""
     if not COUNTER:
         return None
     try:
@@ -156,12 +206,17 @@ def _count(add: int = 0) -> int | None:
         fd = os.open(COUNTER, os.O_RDWR | os.O_CREAT, 0o600)
         with os.fdopen(fd, "r+") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
-            n = int(f.read().strip() or 0) + add
-            if add:
+            nums = [int(v) for v in f.read().split()]
+            if len(nums) == 1:  # older single-total file: that total was scrubs
+                nums = [nums[0], nums[0]]
+            checked, scrubbed = (nums + [0, 0])[:2]
+            if bump:
+                checked += bump == "checked"
+                scrubbed += bump == "scrubbed"
                 f.seek(0)
                 f.truncate()
-                f.write(str(n))
-            return n
+                f.write(f"{checked} {scrubbed}")
+            return {"checked": checked, "scrubbed": scrubbed}
     except (OSError, ValueError, ImportError):  # never let the counter break a request
         return None
 
@@ -177,6 +232,7 @@ async def api_scan(file: UploadFile = File(...), fast: bool = Form(False),
     async with WORKERS, _Upload(file) as up:
         r = await run_in_threadpool(scan, up.path, not fast, not fast)
         d = _report_dict(r, up.name)
+        d["totals"] = await run_in_threadpool(_counts, "checked")
         if extract and r.artifacts:
             total = sum(len(a.data) for a in r.artifacts)
             if total <= ARTIFACT_CAP:
@@ -222,9 +278,9 @@ async def api_sanitize(
             notes: list[str] = []
             out = sanitize(up.path, None, pdf_mode=pdf_mode, visual=opts, notes=notes)
             after = scan(out)
-            return before, out, notes, after, _count(1)
+            return before, out, notes, after, _counts("scrubbed")
         try:
-            before, out, notes, after, scrubbed = await run_in_threadpool(work)
+            before, out, notes, after, totals = await run_in_threadpool(work)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(422, str(e))
         remaining = [f for f in after.sorted_findings()
@@ -242,7 +298,7 @@ async def api_sanitize(
             "remaining": [f.__dict__ for f in remaining],
             "notes": notes,
             "hints": hints,
-            "scrubbed": scrubbed,
+            "totals": totals,
         }
 
 
@@ -331,6 +387,33 @@ async def contact_send(request: Request, name: str = Form(""), email: str = Form
 @app.get("/donate")
 def donate():
     return FileResponse(str(STATIC / "donate.html"))
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots():
+    return f"User-agent: *\nDisallow: /api/\n\nSitemap: {SITE}/sitemap.xml\n"
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    paths = ["/", "/about", "/contact", "/donate", *(f"/{s}" for s in GUIDES)]
+    urls = "".join(f"  <url><loc>{SITE}{p}</loc></url>\n" for p in paths)
+    return Response('<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                    f"{urls}</urlset>\n", media_type="application/xml")
+
+
+@app.get("/{slug}")
+def guide(slug: str):
+    if slug not in GUIDES:
+        raise HTTPException(404)
+    g = GUIDES[slug]
+    page = (GUIDE_DIR / "_page.html").read_text(encoding="utf-8")
+    for key, val in (("title", html.escape(g["title"])), ("description", html.escape(g["description"])),
+                     ("url", f"{SITE}/{slug}"), ("h1", g["h1"]), ("lede", g["lede"]),
+                     ("article", (GUIDE_DIR / f"{slug}.html").read_text(encoding="utf-8"))):
+        page = page.replace("{{" + key + "}}", val)
+    return HTMLResponse(page)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
