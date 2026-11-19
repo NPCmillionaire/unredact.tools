@@ -170,6 +170,14 @@ def check_pages(base: str, check: Check):
     for path in links:
         s, _, _ = request(base + path)
         check(f"linked page {path}", s == 200, f"status {s}")
+    s, _, b = request(base + "/.well-known/security.txt")
+    m = re.search(r"^Expires: (\S+)", b.decode("utf-8", "replace"), re.M)
+    days = ((time.mktime(time.strptime(m.group(1), "%Y-%m-%dT%H:%M:%SZ")) - time.time()) / 86400
+            if m else -1)
+    check("security.txt present and not expiring within 30 days", s == 200 and days > 30,
+          f"{days:.0f} days left" if m else f"status {s}")
+    s, _, b = request(base + "/pgp.txt")
+    check("PGP key published", s == 200 and b"BEGIN PGP PUBLIC KEY BLOCK" in b)
     s, _, _ = request(base + "/no-such-page-" + secrets.token_hex(3))
     check("unknown page is 404", s == 404, f"status {s}")
 

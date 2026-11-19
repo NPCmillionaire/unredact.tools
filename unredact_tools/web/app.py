@@ -522,6 +522,29 @@ def indexnow_key():  # proves to IndexNow (Bing, Yandex, ...) that pings for thi
     return INDEXNOW_KEY
 
 
+# RFC 9116. Expires must be renewed by hand each year (tools/sitecheck.py warns
+# 30 days ahead), so a forgotten file stops claiming anyone is listening.
+SECURITY_EXPIRES = "2027-11-19T00:00:00Z"
+
+
+@app.get("/.well-known/security.txt", response_class=PlainTextResponse)
+@app.get("/security.txt", response_class=PlainTextResponse)
+def security_txt():
+    return (f"Contact: mailto:cam@legitbiz.xyz\n"
+            f"Contact: {SITE}/contact\n"
+            f"Expires: {SECURITY_EXPIRES}\n"
+            f"Encryption: {SITE}/pgp.txt\n"
+            f"Policy: {SITE}/contact#security\n"
+            f"Preferred-Languages: en\n"
+            f"Canonical: {SITE}/.well-known/security.txt\n")
+
+
+@app.get("/pgp.txt", response_class=PlainTextResponse)
+def pgp_key():
+    """Site PGP key (same one the onion edition publishes), for encrypted reports."""
+    return (STATIC / "pgp.asc").read_text(encoding="utf-8")
+
+
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def robots():
     agents = "".join(f"User-agent: {a}\n" for a in CRAWLERS)

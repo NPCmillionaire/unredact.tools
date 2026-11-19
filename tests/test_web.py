@@ -242,3 +242,14 @@ def test_trusted_test_traffic_is_not_counted(fx, tmp_path, monkeypatch):
         with open(fx / "leak.txt", "rb") as f:
             r = client.post(path, files={"file": ("leak.txt", f)}, headers=auth)
         assert r.status_code == 200 and r.json()["totals"] == {"checked": 0, "scrubbed": 0}
+
+
+def test_security_txt():
+    from datetime import datetime, timezone
+    for path in ("/.well-known/security.txt", "/security.txt"):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+        fields = dict(line.split(": ", 1) for line in r.text.splitlines() if ": " in line)
+        assert "Contact" in fields and fields["Canonical"].endswith("/.well-known/security.txt")
+        assert datetime.fromisoformat(fields["Expires"].replace("Z", "+00:00")) > datetime.now(timezone.utc)
+    assert "BEGIN PGP PUBLIC KEY BLOCK" in client.get("/pgp.txt").text
