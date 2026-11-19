@@ -125,6 +125,9 @@ def samples(tmp: Path) -> dict[str, Path]:
                          capture_output=True, text=True)
     if gen.returncode == 0:
         found.update({p.name: p for p in tmp.iterdir() if p.name in SAMPLES})
+    else:
+        print("  note  couldn't generate sample files (install the dev extras: "
+              'pip install -e ".[dev]"); testing with what\'s on hand')
     try:
         from PIL import Image, ImageDraw, ImageFont
         img = Image.new("RGB", (900, 260), "white")
