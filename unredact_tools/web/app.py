@@ -39,11 +39,13 @@ from importlib import resources
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, Response)
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__, media, vision
 from ..image import VisualOpts
@@ -66,6 +68,7 @@ ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total s
 STATIC = resources.files(__package__) / "static"
 GUIDE_DIR = resources.files(__package__) / "guides"
 SITE = "https://unredact.tools"  # canonical origin for the sitemap and link tags
+ROOT_ICONS = {"/favicon.ico": "favicon.ico", "/apple-touch-icon.png": "apple-touch-icon.png"}
 
 # Search landing pages: slug -> head and hero text; the body is guides/<slug>.html.
 # The main pages reach them only through the /guides hub linked in the footer.
@@ -176,8 +179,9 @@ async def headers(request: Request, call_next):
     else:
         resp = await call_next(request)
     # assets carry no user data, so let browsers keep them; everything else stays no-store
-    static = request.url.path.startswith("/static/")
+    static = request.url.path.startswith("/static/") or request.url.path in ROOT_ICONS
     resp.headers["Cache-Control"] = "public, max-age=86400" if static else "no-store"
+    resp.headers["Strict-Transport-Security"] = "max-age=31536000"  # ignored over plain http
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["X-Frame-Options"] = "DENY"
@@ -199,6 +203,28 @@ class _GZipPages(GZipMiddleware):
 
 
 app.add_middleware(_GZipPages, minimum_size=1000)
+
+
+class _HeadAsGet:
+    """Answer HEAD like GET without the body. FastAPI's GET routes reject HEAD, which
+    crawlers, link checkers and uptime monitors use."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            return await self.app(scope, receive, send)
+
+        async def headers_only(message):
+            if message["type"] == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app({**scope, "method": "GET"}, receive, headers_only)
+
+
+app.add_middleware(_HeadAsGet)
 
 
 def _safe_name(name: str | None) -> str:
@@ -391,6 +417,13 @@ async def crash(request: Request, exc: Exception):  # never echo internals or pa
     return JSONResponse({"detail": f"processing failed ({type(exc).__name__})"}, status_code=500)
 
 
+@app.exception_handler(StarletteHTTPException)
+async def not_found(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+        return FileResponse(str(STATIC / "404.html"), status_code=404)
+    return await http_exception_handler(request, exc)
+
+
 @app.get("/")
 def index():
     return FileResponse(str(STATIC / "index.html"))
@@ -471,6 +504,12 @@ async def contact_send(request: Request, name: str = Form(""), email: str = Form
 @app.get("/donate")
 def donate():
     return FileResponse(str(STATIC / "donate.html"))
+
+
+@app.get("/favicon.ico")
+@app.get("/apple-touch-icon.png")
+def root_icon(request: Request):  # browsers and crawlers ask for these at the root
+    return FileResponse(str(STATIC / ROOT_ICONS[request.url.path]))
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)

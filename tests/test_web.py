@@ -64,6 +64,19 @@ def test_caching_compression_and_www_redirect():
     assert r.status_code == 301 and r.headers["location"] == "https://unredact.tools/about?x=1"
 
 
+def test_head_icons_404_and_hsts():
+    head = client.head("/")
+    assert head.status_code == 200 and head.content == b"" and "strict-transport-security" in head.headers
+    for path in ("/favicon.ico", "/apple-touch-icon.png"):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers["content-type"].startswith(("image/", "application/"))
+    page = client.get("/no-such-page")
+    assert page.status_code == 404 and "text/html" in page.headers["content-type"] and "noindex" in page.text
+    assert client.get("/static/nope.css").status_code == 404
+    api = client.get("/api/nope")
+    assert api.status_code == 404 and api.json() == {"detail": "Not Found"}
+
+
 def test_robots_and_sitemap():
     r = client.get("/robots.txt")
     assert r.status_code == 200 and "Disallow: /api/" in r.text and "/sitemap.xml" in r.text
