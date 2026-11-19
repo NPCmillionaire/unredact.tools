@@ -246,9 +246,12 @@
   }
 
   function showScrubbed(n) {
-    if (typeof n !== "number" || n < 1) return;
-    $("#scrubbed").textContent = n.toLocaleString();
-    $("#counter").hidden = false;
+    if (typeof n !== "number") return;  // counter turned off on this server
+    const box = $("#counter");
+    if (n < 1) box.textContent = "No files scrubbed yet. Be the first.";
+    else box.replaceChildren(el("strong", { textContent: n.toLocaleString() }),
+                             ` file${n === 1 ? "" : "s"} scrubbed so far`);
+    box.hidden = false;
   }
 
   // ---------- boot ----------
