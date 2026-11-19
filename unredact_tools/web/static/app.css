@@ -203,3 +203,5 @@ footer .onion { word-break: break-all; }
 .form-status { padding: 12px 14px; border-radius: var(--r); font-weight: 600; margin: 20px 0 0; }
 .form-status.ok { background: rgba(74, 222, 128, .12); border: 1px solid var(--ok); color: var(--ok) !important; }
 .form-status.bad { background: rgba(255, 90, 74, .12); border: 1px solid var(--high); color: var(--high) !important; }
+.counter { margin: 16px 0 0; font: 14px var(--mono); color: var(--muted); }
+.counter strong { color: var(--ok); font-size: 16px; }

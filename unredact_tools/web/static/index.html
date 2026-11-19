@@ -24,6 +24,7 @@
   <section class="hero">
     <h1>See what your files <span class="hl">give away</span>.</h1>
     <p class="lede">GPS coordinates, device serials, author names, black boxes that don't actually hide anything, deleted tracked changes, printer tracking dots. Drop a file to see what it leaks, then download a copy with all of it removed.</p>
+    <p class="counter" id="counter" hidden><strong id="scrubbed"></strong> files scrubbed so far</p>
   </section>
 
   <section id="drop" class="drop" tabindex="0" role="button" aria-label="Choose files to scan">
@@ -44,7 +45,7 @@
 
   <div class="privacy">
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-    <span>Files are processed in a temporary folder that is deleted before the response is sent. Nothing is stored or logged. For anything truly sensitive, run it yourself: <code>pip install "unredact-tools[web]" &amp;&amp; unredact.tools web</code></span>
+    <span>Files are processed in a temporary folder that is deleted before the response is sent. Nothing is stored or logged. The only thing kept is a running count of files cleaned, with no details about any of them. For anything truly sensitive, run it yourself: <code>pip install "unredact-tools[web]" &amp;&amp; unredact.tools web</code></span>
   </div>
 
   <section id="results" aria-live="polite"></section>

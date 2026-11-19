@@ -15,6 +15,8 @@ Env:
   UNREDACT_CONTACT_TO    address the /contact form emails (form is off when unset)
   UNREDACT_CONTACT_FROM  sender address for those emails (default noreply@<host>)
   UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
+  UNREDACT_COUNTER       file holding the running total of files sanitized (off when unset).
+                         It stores that one integer and nothing else.
 """
 from __future__ import annotations
 
@@ -46,6 +48,7 @@ WORKERS = asyncio.Semaphore(int(os.environ.get("UNREDACT_WORKERS", "2")))
 CONTACT_TO = os.environ.get("UNREDACT_CONTACT_TO", "").strip()
 CONTACT_FROM = os.environ.get("UNREDACT_CONTACT_FROM", "").strip()
 SMTP = os.environ.get("UNREDACT_SMTP", "localhost:25")
+COUNTER = os.environ.get("UNREDACT_COUNTER", "").strip()
 CONTACT_LIMIT = 5  # messages per sender per hour
 ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total size
 
@@ -139,7 +142,28 @@ def info():
         "ffmpeg": media.have_ffmpeg(),
         "ocr": vision.available() and vision.HAVE_OCR,
         "vision": vision.available(),
+        "scrubbed": _count(),
     }
+
+
+def _count(add: int = 0) -> int | None:
+    """Read, and optionally bump, the files-scrubbed total. Locked, since Passenger and
+    uvicorn can run several worker processes against the same file."""
+    if not COUNTER:
+        return None
+    try:
+        import fcntl
+        fd = os.open(COUNTER, os.O_RDWR | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "r+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            n = int(f.read().strip() or 0) + add
+            if add:
+                f.seek(0)
+                f.truncate()
+                f.write(str(n))
+            return n
+    except (OSError, ValueError, ImportError):  # never let the counter break a request
+        return None
 
 
 @app.get("/api/tip")
@@ -198,9 +222,9 @@ async def api_sanitize(
             notes: list[str] = []
             out = sanitize(up.path, None, pdf_mode=pdf_mode, visual=opts, notes=notes)
             after = scan(out)
-            return before, out, notes, after
+            return before, out, notes, after, _count(1)
         try:
-            before, out, notes, after = await run_in_threadpool(work)
+            before, out, notes, after, scrubbed = await run_in_threadpool(work)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(422, str(e))
         remaining = [f for f in after.sorted_findings()
@@ -218,6 +242,7 @@ async def api_sanitize(
             "remaining": [f.__dict__ for f in remaining],
             "notes": notes,
             "hints": hints,
+            "scrubbed": scrubbed,
         }
 
 

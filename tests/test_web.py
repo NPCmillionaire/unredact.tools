@@ -135,3 +135,20 @@ def test_contact_form(monkeypatch):
     for _ in range(web.CONTACT_LIMIT):
         contact()
     assert "error=busy" in contact().headers["location"]
+
+
+def test_scrubbed_counter(fx, tmp_path, monkeypatch):
+    monkeypatch.setattr(web, "COUNTER", "")
+    assert client.get("/api/info").json()["scrubbed"] is None
+    assert post("/api/sanitize", fx, "leak.txt").json()["scrubbed"] is None
+
+    path = tmp_path / "scrubbed.count"
+    monkeypatch.setattr(web, "COUNTER", str(path))
+    assert client.get("/api/info").json()["scrubbed"] == 0
+    assert post("/api/sanitize", fx, "leak.txt").json()["scrubbed"] == 1
+    assert post("/api/sanitize", fx, "photo.jpg").json()["scrubbed"] == 2
+    assert client.get("/api/info").json()["scrubbed"] == 2
+    assert path.read_text() == "2"  # one integer, nothing else
+    client.post("/api/sanitize", data={"pdf_mode": "bogus"},
+                files={"file": ("a.txt", b"hi")})  # rejected requests don't count
+    assert client.get("/api/info").json()["scrubbed"] == 2

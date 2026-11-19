@@ -210,6 +210,7 @@
       fd.append("regions", form.regions.value);
       try {
         const res = await api("/api/sanitize", fd);
+        showScrubbed(res.scrubbed);
         showClean(res, out, form);
       } catch (e) {
         out.replaceChildren(el("div", { className: "status err", textContent: `✕ ${e.message}` }));
@@ -244,10 +245,17 @@
     return { root, scan, fail };
   }
 
+  function showScrubbed(n) {
+    if (typeof n !== "number" || n < 1) return;
+    $("#scrubbed").textContent = n.toLocaleString();
+    $("#counter").hidden = false;
+  }
+
   // ---------- boot ----------
   fetch("/api/info").then((r) => r.json()).then((i) => {
     info = i;
     $("#ver").textContent = `v${i.version}`;
+    showScrubbed(i.scrubbed);
     if (!i.ffmpeg) $("#supports").textContent = $("#supports").textContent.replace(" · MP4 · MOV · MP3", "");
   }).catch(() => {});
   const tip = () => fetch("/api/tip").then((r) => r.json()).then((t) => { $("#tip").textContent = t.tip; $("#tip-box").hidden = false; }).catch(() => {});
