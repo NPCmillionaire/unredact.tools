@@ -50,6 +50,9 @@ from ..image import VisualOpts
 from ..scanner import detect, sanitize, scan
 from ..tips import TIPS, random_tip
 
+if vision.HAVE_CV:
+    vision.cv2.setNumThreads(0)  # run sequentially; see the thread caps in web/__init__.py
+
 MAX_MB = int(os.environ.get("UNREDACT_MAX_MB", "50"))
 WORKERS = asyncio.Semaphore(int(os.environ.get("UNREDACT_WORKERS", "2")))
 CONTACT_TO = os.environ.get("UNREDACT_CONTACT_TO", "").strip()
