@@ -77,9 +77,21 @@ def test_head_icons_404_and_hsts():
     assert api.status_code == 404 and api.json() == {"detail": "Not Found"}
 
 
+def test_indexnow_key_file():
+    r = client.get(f"/{web.INDEXNOW_KEY}.txt")
+    assert r.status_code == 200 and r.text == web.INDEXNOW_KEY
+
+
+def test_llms_txt():
+    r = client.get("/llms.txt")
+    assert r.status_code == 200 and r.text.startswith("# unredact.tools")
+    assert all(f"https://unredact.tools/{slug})" in r.text for slug in web.GUIDES)
+
+
 def test_robots_and_sitemap():
     r = client.get("/robots.txt")
     assert r.status_code == 200 and "Disallow: /api/" in r.text and "/sitemap.xml" in r.text
+    assert "User-agent: GPTBot" in r.text and "User-agent: ClaudeBot" in r.text
     sm = client.get("/sitemap.xml")
     assert sm.status_code == 200 and sm.headers["content-type"].startswith("application/xml")
     for slug in ("guides", *web.GUIDES):

@@ -69,6 +69,11 @@ STATIC = resources.files(__package__) / "static"
 GUIDE_DIR = resources.files(__package__) / "guides"
 SITE = "https://unredact.tools"  # canonical origin for the sitemap and link tags
 ROOT_ICONS = {"/favicon.ico": "favicon.ico", "/apple-touch-icon.png": "apple-touch-icon.png"}
+INDEXNOW_KEY = "2dec584e80c69d02f5f37e8360239dd4"  # public by design; see tools/indexnow.py  # gitleaks:allow
+# Named so the intent is explicit for AI search and assistant crawlers; all get the same rules.
+CRAWLERS = ["*", "Googlebot", "Bingbot", "GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot",
+            "Claude-SearchBot", "Claude-User", "PerplexityBot", "Perplexity-User", "Google-Extended",
+            "Applebot", "Applebot-Extended", "DuckDuckBot", "CCBot"]
 
 # Search landing pages: slug -> head and hero text; the body is guides/<slug>.html.
 # The main pages reach them only through the /guides hub linked in the footer.
@@ -512,9 +517,40 @@ def root_icon(request: Request):  # browsers and crawlers ask for these at the r
     return FileResponse(str(STATIC / ROOT_ICONS[request.url.path]))
 
 
+@app.get(f"/{INDEXNOW_KEY}.txt", response_class=PlainTextResponse)
+def indexnow_key():  # proves to IndexNow (Bing, Yandex, ...) that pings for this host are ours
+    return INDEXNOW_KEY
+
+
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def robots():
-    return f"User-agent: *\nDisallow: /api/\n\nSitemap: {SITE}/sitemap.xml\n"
+    agents = "".join(f"User-agent: {a}\n" for a in CRAWLERS)
+    return f"{agents}Allow: /\nDisallow: /api/\n\nSitemap: {SITE}/sitemap.xml\n"
+
+
+@app.get("/llms.txt", response_class=PlainTextResponse)
+def llms_txt():  # a plain summary for AI assistants and their crawlers (llmstxt.org)
+    guides = "".join(f"- [{g['title'].removesuffix(' · unredact.tools')}]({SITE}/{slug}): {g['description']}\n"
+                     for slug, g in GUIDES.items())
+    return (
+        "# unredact.tools\n\n"
+        "> Free, open-source tool that shows what metadata and hidden content a photo, PDF, Office "
+        "document, video or text file leaks, then makes a clean copy rebuilt from the visible content "
+        "only and re-scans it to confirm nothing survived.\n\n"
+        "It finds GPS coordinates, device serial numbers, author names, timestamps, text left under "
+        "black-box PDF redactions, earlier PDF versions, tracked changes and comments in Word, hidden "
+        "sheets in Excel, speaker notes in PowerPoint, zero-width and Unicode-tag watermarks, and "
+        "printer tracking dots (decoding the Xerox DocuColor pattern). It also checks the image itself "
+        "for faces, license plates, QR codes and readable sensitive text.\n\n"
+        "Uploads are processed in a temporary folder deleted before the response is sent; nothing is "
+        "stored or logged. It can run locally (`pip install \"unredact-tools[web]\" && unredact.tools web`) "
+        "and has a Tor onion mirror. MIT-licensed.\n\n"
+        "## Main pages\n\n"
+        f"- [Scanner]({SITE}/): drop a file, see what it gives away, download a clean copy\n"
+        f"- [About]({SITE}/about): who it's for and how it works\n"
+        f"- [Guides]({SITE}/guides): how files leak and how to check them\n"
+        "- [Source code](https://github.com/NPCmillionaire/unredact.tools)\n\n"
+        f"## Guides\n\n{guides}")
 
 
 @app.get("/sitemap.xml")
