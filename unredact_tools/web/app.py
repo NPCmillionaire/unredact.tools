@@ -40,6 +40,7 @@ from importlib import resources
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, Response)
 from fastapi.staticfiles import StaticFiles
@@ -107,6 +108,41 @@ GUIDES = {
         "lede": "Every one of these was a file someone shared on purpose. What it revealed was an "
                 "accident. Drop a file below to check yours before you send it.",
     },
+    "remove-video-metadata": {
+        "title": "Remove location and metadata from a video · unredact.tools",
+        "description": "Phone, action camera and drone videos carry GPS location, device details and "
+                       "timed location tracks. Check a video and remove them without re-encoding.",
+        "h1": 'Remove the location <span class="hl">from a video</span>.',
+        "lede": "Videos from phones, action cameras and drones record where they were filmed, on "
+                "what device, and sometimes a GPS track of every second. Drop a video below to see "
+                "what yours carries, then download a clean copy at full quality.",
+    },
+    "printer-tracking-dots": {
+        "title": "Printer tracking dots: find and remove them from a scan · unredact.tools",
+        "description": "Many color laser printers add tiny yellow dots that encode the printer's serial "
+                       "number and the print time. Check a scan or scanned PDF for them and remove them.",
+        "h1": 'Find printer <span class="hl">tracking dots</span>.',
+        "lede": "Many color laser printers add a grid of tiny yellow dots to every page, too faint to "
+                "notice. They can encode the printer's serial number and when the page was printed. "
+                "Drop a scan or scanned PDF below to check for them.",
+    },
+    "remove-location-from-iphone-photos": {
+        "title": "Remove location from iPhone photos before you share them · unredact.tools",
+        "description": "iPhone photos save exactly where they were taken. How to stop it, how to remove "
+                       "location from photos you've taken, and how to check what a photo still carries.",
+        "h1": 'Remove the location <span class="hl">from iPhone photos</span>.',
+        "lede": "Every iPhone photo taken with Location Services on records exactly where it was "
+                "taken. Drop a photo below to see what yours carries, or use the iPhone settings "
+                "further down.",
+    },
+    "where-was-this-photo-taken": {
+        "title": "Where was this photo taken? See what a photo reveals · unredact.tools",
+        "description": "Find out whether a photo reveals where it was taken: GPS coordinates, timezone, "
+                       "device and the clues in the picture itself. Check your own photos before you share them.",
+        "h1": 'Does your photo say <span class="hl">where it was taken</span>?',
+        "lede": "If a photo has GPS data, anyone with the file can put a pin on a map. Drop a photo "
+                "below to see exactly what it reveals about where and when it was taken.",
+    },
 }
 
 # remaining finding title fragment -> sanitize option that fixes it
@@ -130,8 +166,15 @@ if CORS:
 
 @app.middleware("http")
 async def headers(request: Request, call_next):
-    resp = await call_next(request)
-    resp.headers["Cache-Control"] = "no-store"
+    host = request.headers.get("host", "")
+    if host.startswith("www."):  # one canonical host for search engines
+        query = f"?{request.url.query}" if request.url.query else ""
+        resp = RedirectResponse(f"https://{host[4:]}{request.url.path}{query}", status_code=301)
+    else:
+        resp = await call_next(request)
+    # assets carry no user data, so let browsers keep them; everything else stays no-store
+    static = request.url.path.startswith("/static/")
+    resp.headers["Cache-Control"] = "public, max-age=86400" if static else "no-store"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["X-Frame-Options"] = "DENY"
@@ -140,6 +183,19 @@ async def headers(request: Request, call_next):
         "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
         "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
     return resp
+
+
+class _GZipPages(GZipMiddleware):
+    """Compress pages and assets. API responses are skipped: clean files come back as
+    large base64 payloads, and gzipping those costs more CPU than it saves."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/api/"):
+            return await self.app(scope, receive, send)
+        await super().__call__(scope, receive, send)
+
+
+app.add_middleware(_GZipPages, minimum_size=1000)
 
 
 def _safe_name(name: str | None) -> str:

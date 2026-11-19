@@ -55,6 +55,15 @@ def test_about_and_contact():
         assert r.headers["cache-control"] == "no-store"
 
 
+def test_caching_compression_and_www_redirect():
+    assert client.get("/static/app.css").headers["cache-control"].startswith("public")
+    assert client.get("/").headers["cache-control"] == "no-store"
+    assert client.get("/", headers={"accept-encoding": "gzip"}).headers.get("content-encoding") == "gzip"
+    assert "content-encoding" not in client.get("/api/tip", headers={"accept-encoding": "gzip"}).headers
+    r = client.get("/about?x=1", headers={"host": "www.unredact.tools"}, follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "https://unredact.tools/about?x=1"
+
+
 def test_robots_and_sitemap():
     r = client.get("/robots.txt")
     assert r.status_code == 200 and "Disallow: /api/" in r.text and "/sitemap.xml" in r.text
