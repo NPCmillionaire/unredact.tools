@@ -54,6 +54,27 @@ def test_about_and_contact():
         assert r.status_code == 200 and text in r.text
         assert r.headers["cache-control"] == "no-store"
 
+
+def test_robots_and_sitemap():
+    r = client.get("/robots.txt")
+    assert r.status_code == 200 and "Disallow: /api/" in r.text and "/sitemap.xml" in r.text
+    sm = client.get("/sitemap.xml")
+    assert sm.status_code == 200 and sm.headers["content-type"].startswith("application/xml")
+    for slug in web.GUIDES:
+        assert f"<loc>https://unredact.tools/{slug}</loc>" in sm.text
+
+
+def test_guides_render_and_stay_unlinked():
+    for slug, g in web.GUIDES.items():
+        r = client.get(f"/{slug}")
+        assert r.status_code == 200 and "{{" not in r.text
+        assert f'<link rel="canonical" href="https://unredact.tools/{slug}">' in r.text
+        assert 'id="drop"' in r.text and 'id="card-tpl"' in r.text
+    for path in ("/", "/about", "/contact", "/donate"):
+        assert not any(f'href="/{slug}"' in client.get(path).text for slug in web.GUIDES)
+    assert client.get("/no-such-page").status_code == 404
+
+
 def test_info_and_tip():
     assert client.get("/api/info").json()["max_mb"] == web.MAX_MB
     assert client.get("/api/tip").json()["tip"]

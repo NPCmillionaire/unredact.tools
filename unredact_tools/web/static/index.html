@@ -6,8 +6,25 @@
 <meta name="referrer" content="no-referrer">
 <title>unredact.tools — see what your files give away</title>
 <meta name="description" content="Drop a photo, PDF or Office file. See the GPS, serials, authors, failed redactions and hidden text it leaks. Download a clean copy.">
+<link rel="canonical" href="https://unredact.tools/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="unredact.tools">
+<meta property="og:title" content="unredact.tools — see what your files give away">
+<meta property="og:description" content="Drop a photo, PDF or Office file. See the GPS, serials, authors, failed redactions and hidden text it leaks. Download a clean copy.">
+<meta property="og:url" content="https://unredact.tools/">
+<meta property="og:image" content="https://unredact.tools/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "WebApplication", "name": "unredact.tools",
+ "url": "https://unredact.tools/", "applicationCategory": "SecurityApplication",
+ "operatingSystem": "Any (web browser); Windows, macOS, Linux via pip",
+ "description": "See what metadata and hidden content your photos, PDFs and Office files leak (GPS, device serials, authors, failed redactions, hidden text, printer tracking dots), then download a clean copy.",
+ "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+ "license": "https://opensource.org/licenses/MIT",
+ "sameAs": ["https://github.com/NPCmillionaire/unredact.tools"]}
+</script>
 </head>
 <body>
 <header class="top">
@@ -54,6 +71,17 @@
     <span class="tip-label">OPSEC TIP</span>
     <p id="tip"></p>
     <button class="link" id="tip-next" type="button">another</button>
+  </section>
+
+  <section class="prose checks">
+    <h2>What it checks</h2>
+    <p><strong>Photos</strong> (JPEG, PNG, HEIC, WebP, TIFF): GPS coordinates, capture time and timezone, camera make, model and serial numbers, owner names, editing software, the embedded thumbnail of the uncropped original, and motion-photo video hidden after the image. It also looks at the pixels: faces, license plates, QR codes and barcodes, readable text like addresses and card numbers, and printer tracking dots on scans.</p>
+    <p><strong>PDFs</strong>: text still readable under black-box redactions, earlier versions of the file with the text deleted since, white-on-white, microscopic and off-page text, hidden layers, attachments, JavaScript, author and software metadata, and usernames in file paths.</p>
+    <p><strong>Word, Excel and PowerPoint</strong>: author and company names, tracked deletions and who made them, comments, hidden text, template paths, editing session IDs, hidden sheets, rows and slides, speaker notes, and photos inside the document that keep their own metadata.</p>
+    <p><strong>Video and audio</strong> (MP4, MOV, MP3 and more): recording location, device details and timed GPS tracks.</p>
+    <p><strong>Text</strong>: invisible zero-width watermarks and Unicode tag characters used to tag individual copies, and look-alike letters swapped in from other alphabets.</p>
+    <h2>How cleaning works</h2>
+    <p>Each clean copy is rebuilt from the visible content only, instead of deleting known fields one by one, so nothing the tool doesn't recognize gets carried over. The copy is then scanned again and the result shown before you download it. Your original file is never modified.</p>
   </section>
 </main>
 

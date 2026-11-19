@@ -29,4 +29,4 @@ packages = ["unredact_tools", "unredact_tools.models", "unredact_tools.web"]
 
 [tool.setuptools.package-data]
 "unredact_tools.models" = ["*.onnx", "LICENSE-*", "README.md"]
-"unredact_tools.web" = ["static/*"]
+"unredact_tools.web" = ["static/*", "guides/*"]

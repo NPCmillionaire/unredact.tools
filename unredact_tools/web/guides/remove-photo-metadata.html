@@ -1,0 +1,33 @@
+    <h2>What a photo carries besides the picture</h2>
+    <p>Phones and cameras save a block of data called EXIF inside every photo. You never see it, but anyone who opens the file with the right tool does. A typical phone photo can hold:</p>
+    <ul>
+      <li><strong>GPS coordinates</strong> of where it was taken, accurate to a few meters, plus altitude, compass heading and speed.</li>
+      <li><strong>The date and time</strong> it was taken, with your timezone offset.</li>
+      <li><strong>The device</strong>: make, model, and often the serial numbers of the camera body and lens.</li>
+      <li><strong>Names</strong>: owner, artist or copyright fields filled in by the camera or editing app.</li>
+      <li><strong>Editing history</strong>: which apps touched the file, and when.</li>
+      <li><strong>A thumbnail of the original</strong>. If you cropped someone or something out, the embedded thumbnail can still show the uncropped shot.</li>
+      <li><strong>Extra data after the image</strong>, like the short video clip saved with motion photos and Live Photos.</li>
+    </ul>
+
+    <h2>Don't websites strip this already?</h2>
+    <p>Many large social platforms remove metadata from the copy they show the public. Plenty of other routes pass your original file along untouched: email attachments, photos sent as files or documents in chat apps, cloud storage share links, online marketplaces, forums and smaller sites. Unless you know how the file will travel, assume the recipient gets everything.</p>
+    <p>Turning off location for your camera only affects photos you take from then on. Share-sheet options that drop location usually leave the rest: device model, timestamps and editing software.</p>
+
+    <h2>How the clean copy is made</h2>
+    <p>The tool doesn't delete known fields one by one, because a field it didn't know about would survive. It rebuilds the photo instead. Rotation is baked into the pixels, colors are converted to standard sRGB, and only the raw pixels are copied into a brand new image. EXIF, GPS, XMP, IPTC, thumbnails, maker notes, comments and appended video are all left behind.</p>
+    <p>The clean copy is then scanned again before you download it, so you can see for yourself that nothing survived. HEIC photos from iPhones come back as JPEG.</p>
+
+    <h2>What metadata removal can't fix</h2>
+    <p>Some leaks are in the picture itself: a street sign, a house number, a reflection, a face in the background, a boarding pass on the table. The scan looks for faces, license plates, QR codes and barcodes, and readable text like addresses and card numbers. When you clean the photo you can blur faces and black out plates, codes and text with solid boxes that can't be reversed.</p>
+    <p>Every camera sensor also leaves a faint noise pattern that can link photos to the same device. The <em>Break camera sensor fingerprint</em> option resamples and crops the image slightly to break that link.</p>
+
+    <h2>Supported photo formats</h2>
+    <p>JPEG, PNG, HEIC, HEIF, AVIF, WebP, TIFF, GIF and BMP. Videos from phones carry location too, and MP4 and MOV files can be checked and cleaned the same way.</p>
+
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/famous-metadata-leaks">Real cases where a file gave someone away</a></li>
+      <li><a href="/check-pdf-redaction">Check if a PDF redaction actually worked</a></li>
+      <li><a href="/remove-word-metadata">Remove hidden data from a Word document</a></li>
+    </ul>
