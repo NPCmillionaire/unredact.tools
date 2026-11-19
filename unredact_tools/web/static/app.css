@@ -189,3 +189,17 @@ footer .onion { word-break: break-all; }
 .wallet .label { grid-column: 1 / -1; font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .wallet .addr { word-break: break-all; user-select: all; background: none; padding: 0; color: var(--text); font-size: 14px; }
 .prose .pledge { margin: 18px 0 0; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--panel); color: var(--text); font-weight: 600; }
+.contact-form { display: flex; flex-direction: column; gap: 14px; margin: 24px 0; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.contact-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; flex: 1; min-width: 0; }
+.contact-form label small { color: var(--dim); font-weight: 400; }
+.contact-form .field-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.contact-form .field-row label { min-width: 220px; }
+.contact-form input, .contact-form select, .contact-form textarea { font: 15px var(--sans); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+.contact-form textarea { resize: vertical; min-height: 140px; }
+.contact-form input:focus, .contact-form select:focus, .contact-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+.contact-form .btn { align-self: flex-start; }
+.contact-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.form-note { margin: 0; font-size: 13px; color: var(--dim) !important; }
+.form-status { padding: 12px 14px; border-radius: var(--r); font-weight: 600; margin: 20px 0 0; }
+.form-status.ok { background: rgba(74, 222, 128, .12); border: 1px solid var(--ok); color: var(--ok) !important; }
+.form-status.bad { background: rgba(255, 90, 74, .12); border: 1px solid var(--high); color: var(--high) !important; }

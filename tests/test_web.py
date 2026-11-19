@@ -107,3 +107,31 @@ def test_hostile_filename_stays_in_tempdir():
     assert web._safe_name("..\\..\\win.ini") == "win.ini"
     assert web._safe_name("") == "upload"
     assert "/" not in web._safe_name("a/b<script>.jpg")
+
+
+def contact(**form):
+    data = {"name": "Ann", "email": "ann@example.com", "topic": "leak", "message": "hi"}
+    return client.post("/api/contact", data={**data, **form}, follow_redirects=False)
+
+
+def test_contact_form(monkeypatch):
+    sent = []
+    monkeypatch.setattr(web, "_send", sent.append)
+    monkeypatch.setattr(web, "_recent", {})
+    monkeypatch.setattr(web, "CONTACT_TO", "")
+    assert contact().headers["location"] == "/contact?error=off#form"
+
+    monkeypatch.setattr(web, "CONTACT_TO", "owner@example.com")
+    r = contact(name="Ann\r\nBcc: x@evil.test")
+    assert r.status_code == 303 and r.headers["location"] == "/contact?sent#form"
+    msg = sent.pop()
+    assert msg["To"] == "owner@example.com" and msg["Reply-To"] == "ann@example.com"
+    assert "Missed leak" in msg["Subject"] and "\n" not in msg["Subject"] and msg["Bcc"] is None
+
+    assert contact(website="spam").headers["location"] == "/contact?sent#form" and not sent
+    assert "error=invalid" in contact(message="  ").headers["location"]
+    assert "error=invalid" in contact(email="nope").headers["location"]
+    assert contact(email="", name="").status_code == 303 and sent.pop()["Reply-To"] is None
+    for _ in range(web.CONTACT_LIMIT):
+        contact()
+    assert "error=busy" in contact().headers["location"]

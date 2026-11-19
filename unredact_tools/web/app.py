@@ -12,6 +12,9 @@ Env:
   UNREDACT_WORKERS   concurrent scans/sanitizes (default 2; OCR is CPU-heavy)
   UNREDACT_CORS      comma-separated origins allowed to call the API from another
                      site, e.g. https://unredact.tools (for the Cloudflare Pages site)
+  UNREDACT_CONTACT_TO    address the /contact form emails (form is off when unset)
+  UNREDACT_CONTACT_FROM  sender address for those emails (default noreply@<host>)
+  UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
 """
 from __future__ import annotations
 
@@ -21,13 +24,16 @@ import mimetypes
 import os
 import re
 import shutil
+import smtplib
 import tempfile
+import time
+from email.message import EmailMessage
 from importlib import resources
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__, media, vision
@@ -37,6 +43,10 @@ from ..tips import TIPS, random_tip
 
 MAX_MB = int(os.environ.get("UNREDACT_MAX_MB", "50"))
 WORKERS = asyncio.Semaphore(int(os.environ.get("UNREDACT_WORKERS", "2")))
+CONTACT_TO = os.environ.get("UNREDACT_CONTACT_TO", "").strip()
+CONTACT_FROM = os.environ.get("UNREDACT_CONTACT_FROM", "").strip()
+SMTP = os.environ.get("UNREDACT_SMTP", "localhost:25")
+CONTACT_LIMIT = 5  # messages per sender per hour
 ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total size
 
 STATIC = resources.files(__package__) / "static"
@@ -229,6 +239,68 @@ def about():
 @app.get("/contact")
 def contact():
     return FileResponse(str(STATIC / "contact.html"))
+
+
+TOPICS = {"general": "Question", "leak": "Missed leak", "security": "Security issue",
+          "bug": "Bug", "other": "Other"}
+EMAIL_RE = re.compile(r"[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}")
+_recent: dict[str, list[float]] = {}  # in memory only, pruned after an hour
+
+
+def _one_line(v: str, cap: int) -> str:
+    return " ".join(v.split())[:cap]
+
+
+def _rate_limited(key: str) -> bool:
+    now = time.time()
+    for k in [k for k, ts in _recent.items() if ts[-1] < now - 3600]:
+        del _recent[k]
+    ts = [t for t in _recent.get(key, []) if t > now - 3600]
+    _recent[key] = ts + [now]
+    return len(ts) >= CONTACT_LIMIT
+
+
+def _send(msg: EmailMessage):
+    host, _, port = SMTP.partition(":")
+    with smtplib.SMTP(host, int(port or 25), timeout=15) as s:
+        s.send_message(msg)
+
+
+@app.post("/api/contact")
+async def contact_send(request: Request, name: str = Form(""), email: str = Form(""),
+                       topic: str = Form("general"), message: str = Form(""),
+                       website: str = Form("")):
+    """Email a contact-form message. Nothing is stored; the reply goes to /contact."""
+    def back(status: str):
+        return RedirectResponse(f"/contact?{status}#form", status_code=303)
+
+    if website:  # honeypot: only bots fill the hidden field
+        return back("sent")
+    if not CONTACT_TO:
+        return back("error=off")
+    message = message.strip()
+    email = _one_line(email, 254)
+    if not message or len(message) > 5000 or (email and not EMAIL_RE.fullmatch(email)):
+        return back("error=invalid")
+    who = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+    if _rate_limited(who):
+        return back("error=busy")
+
+    name = _one_line(name, 100)
+    host = request.url.hostname or "localhost"
+    msg = EmailMessage()
+    msg["From"] = CONTACT_FROM or f"noreply@{host}"
+    msg["To"] = CONTACT_TO
+    if email:
+        msg["Reply-To"] = email
+    msg["Subject"] = f"[{host}] {TOPICS.get(topic, 'Other')}" + (f" from {name}" if name else "")
+    msg.set_content(f"Name:  {name or '(not given)'}\nEmail: {email or '(not given)'}\n"
+                    f"Topic: {TOPICS.get(topic, 'Other')}\n\n{message}\n")
+    try:
+        await run_in_threadpool(_send, msg)
+    except (OSError, smtplib.SMTPException):
+        return back("error=send")
+    return back("sent")
 
 
 @app.get("/donate")
