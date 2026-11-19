@@ -17,6 +17,8 @@ Env:
   UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
   UNREDACT_COUNTER       file holding two running totals, files checked and files sanitized
                          (off when unset). It stores those two integers and nothing else.
+  UNREDACT_RELAY_TOKEN   shared secret for a trusted front end (the onion edition) that
+                         relays contact messages and bumps the totals. Off when unset.
 """
 from __future__ import annotations
 
@@ -26,6 +28,7 @@ import html
 import mimetypes
 import os
 import re
+import secrets
 import shutil
 import smtplib
 import tempfile
@@ -51,6 +54,7 @@ CONTACT_TO = os.environ.get("UNREDACT_CONTACT_TO", "").strip()
 CONTACT_FROM = os.environ.get("UNREDACT_CONTACT_FROM", "").strip()
 SMTP = os.environ.get("UNREDACT_SMTP", "localhost:25")
 COUNTER = os.environ.get("UNREDACT_COUNTER", "").strip()
+RELAY_TOKEN = os.environ.get("UNREDACT_RELAY_TOKEN", "").strip()
 CONTACT_LIMIT = 5  # messages per sender per hour
 ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total size
 
@@ -221,6 +225,23 @@ def _counts(bump: str | None = None) -> dict[str, int] | None:
         return None
 
 
+def _relayed(request: Request) -> bool:
+    """True when the request carries the relay token of a trusted front end."""
+    auth = request.headers.get("authorization", "")
+    want = f"Bearer {RELAY_TOKEN}".encode()
+    return bool(RELAY_TOKEN) and secrets.compare_digest(auth.encode(), want)
+
+
+@app.post("/api/totals/{kind}")
+def bump_total(kind: str, request: Request):
+    """Let the onion edition add its scans and cleans to the shared totals."""
+    if not _relayed(request):
+        raise HTTPException(403, "forbidden")
+    if kind not in ("checked", "scrubbed"):
+        raise HTTPException(404, "unknown total")
+    return {"totals": _counts(kind)}
+
+
 @app.get("/api/tip")
 def tip():
     return {"tip": random_tip(), "count": len(TIPS)}
@@ -364,7 +385,7 @@ async def contact_send(request: Request, name: str = Form(""), email: str = Form
     if not message or len(message) > 5000 or (email and not EMAIL_RE.fullmatch(email)):
         return back("error=invalid")
     who = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
-    if _rate_limited(who):
+    if not _relayed(request) and _rate_limited(who):  # the relay rate-limits its own users
         return back("error=busy")
 
     name = _one_line(name, 100)

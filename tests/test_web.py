@@ -174,3 +174,22 @@ def test_counters(fx, tmp_path, monkeypatch):
     client.post("/api/sanitize", data={"pdf_mode": "bogus"},
                 files={"file": ("a.txt", b"hi")})  # rejected requests don't count
     assert client.get("/api/info").json()["totals"] == {"checked": 8, "scrubbed": 8}
+
+
+def test_relay_bumps_totals_and_skips_contact_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(web, "COUNTER", str(tmp_path / "counts"))
+    monkeypatch.setattr(web, "RELAY_TOKEN", "")
+    assert client.post("/api/totals/checked").status_code == 403  # off when unset
+    monkeypatch.setattr(web, "RELAY_TOKEN", "s3cret")
+    auth = {"Authorization": "Bearer s3cret"}
+    assert client.post("/api/totals/checked", headers={"Authorization": "Bearer nope"}).status_code == 403
+    assert client.post("/api/totals/bogus", headers=auth).status_code == 404
+    assert client.post("/api/totals/checked", headers=auth).json()["totals"] == {"checked": 1, "scrubbed": 0}
+    assert client.post("/api/totals/scrubbed", headers=auth).json()["totals"] == {"checked": 1, "scrubbed": 1}
+
+    monkeypatch.setattr(web, "_send", lambda msg: None)
+    monkeypatch.setattr(web, "_recent", {})
+    monkeypatch.setattr(web, "CONTACT_TO", "owner@example.com")
+    for _ in range(web.CONTACT_LIMIT + 2):
+        r = client.post("/api/contact", data={"message": "hi"}, headers=auth, follow_redirects=False)
+        assert r.headers["location"] == "/contact?sent#form"
