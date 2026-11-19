@@ -187,6 +187,9 @@ footer .onion { word-break: break-all; }
 @media (max-width: 560px) {
   .top { flex-direction: column; align-items: flex-start; gap: 10px; }
   .prose td:first-child { white-space: normal; }
+  .toggle { flex-wrap: wrap; }
+  .toggle span { white-space: nowrap; }
+  .toggle small { flex-basis: 100%; padding-left: 22px; }  /* description under its label */
 }
 .contact-card .sub { color: var(--dim); font: 13px var(--mono); }
 .wallets { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 10px; }
