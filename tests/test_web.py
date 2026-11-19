@@ -47,6 +47,13 @@ def test_index_and_headers():
         assert client.get(f"/static/{asset}").status_code == 200
 
 
+
+def test_about_and_contact():
+    for path, text in (("/about", "What it does"), ("/contact", "mailto:")):
+        r = client.get(path)
+        assert r.status_code == 200 and text in r.text
+        assert r.headers["cache-control"] == "no-store"
+
 def test_info_and_tip():
     assert client.get("/api/info").json()["max_mb"] == web.MAX_MB
     assert client.get("/api/tip").json()["tip"]

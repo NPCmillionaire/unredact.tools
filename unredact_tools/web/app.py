@@ -221,6 +221,16 @@ def index():
     return FileResponse(str(STATIC / "index.html"))
 
 
+@app.get("/about")
+def about():
+    return FileResponse(str(STATIC / "about.html"))
+
+
+@app.get("/contact")
+def contact():
+    return FileResponse(str(STATIC / "contact.html"))
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 
