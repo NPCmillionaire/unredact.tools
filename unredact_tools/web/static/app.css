@@ -188,3 +188,4 @@ footer .onion { word-break: break-all; }
 .wallet { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); margin: 0 !important; }
 .wallet .label { grid-column: 1 / -1; font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .wallet .addr { word-break: break-all; user-select: all; background: none; padding: 0; color: var(--text); font-size: 14px; }
+.prose .pledge { margin: 18px 0 0; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--panel); color: var(--text); font-weight: 600; }
