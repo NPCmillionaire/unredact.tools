@@ -193,3 +193,13 @@ def test_relay_bumps_totals_and_skips_contact_limit(tmp_path, monkeypatch):
     for _ in range(web.CONTACT_LIMIT + 2):
         r = client.post("/api/contact", data={"message": "hi"}, headers=auth, follow_redirects=False)
         assert r.headers["location"] == "/contact?sent#form"
+
+
+def test_trusted_test_traffic_is_not_counted(fx, tmp_path, monkeypatch):
+    monkeypatch.setattr(web, "COUNTER", str(tmp_path / "counts"))
+    monkeypatch.setattr(web, "RELAY_TOKEN", "s3cret")
+    auth = {"Authorization": "Bearer s3cret"}
+    for path in ("/api/scan", "/api/sanitize"):
+        with open(fx / "leak.txt", "rb") as f:
+            r = client.post(path, files={"file": ("leak.txt", f)}, headers=auth)
+        assert r.status_code == 200 and r.json()["totals"] == {"checked": 0, "scrubbed": 0}

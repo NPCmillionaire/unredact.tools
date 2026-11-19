@@ -17,8 +17,9 @@ Env:
   UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
   UNREDACT_COUNTER       file holding two running totals, files checked and files sanitized
                          (off when unset). It stores those two integers and nothing else.
-  UNREDACT_RELAY_TOKEN   shared secret for a trusted front end (the onion edition) that
-                         relays contact messages and bumps the totals. Off when unset.
+  UNREDACT_RELAY_TOKEN   shared secret for trusted clients: the onion edition (relays
+                         contact messages, bumps the totals) and tools/sitecheck.py, whose
+                         test scans and sanitizes are left out of the totals. Off when unset.
 """
 from __future__ import annotations
 
@@ -248,12 +249,13 @@ def tip():
 
 
 @app.post("/api/scan")
-async def api_scan(file: UploadFile = File(...), fast: bool = Form(False),
+async def api_scan(request: Request, file: UploadFile = File(...), fast: bool = Form(False),
                    extract: bool = Form(False)):
     async with WORKERS, _Upload(file) as up:
         r = await run_in_threadpool(scan, up.path, not fast, not fast)
         d = _report_dict(r, up.name)
-        d["totals"] = await run_in_threadpool(_counts, "checked")
+        # trusted test traffic (sitecheck) isn't real use, so it doesn't count
+        d["totals"] = await run_in_threadpool(_counts, None if _relayed(request) else "checked")
         if extract and r.artifacts:
             total = sum(len(a.data) for a in r.artifacts)
             if total <= ARTIFACT_CAP:
@@ -278,6 +280,7 @@ def _regions(text: str):
 
 @app.post("/api/sanitize")
 async def api_sanitize(
+    request: Request,
     file: UploadFile = File(...),
     pdf_mode: str = Form("raster"),
     blur_faces: bool = Form(False),
@@ -293,13 +296,14 @@ async def api_sanitize(
     opts = VisualOpts(blur_faces=blur_faces, redact_codes=redact_codes, redact_text=redact_text,
                       redact_plates=redact_plates, regions=_regions(regions), desync=desync,
                       remove_dots=not keep_dots)
+    relayed = _relayed(request)
     async with WORKERS, _Upload(file) as up:
         def work():
             before = scan(up.path)
             notes: list[str] = []
             out = sanitize(up.path, None, pdf_mode=pdf_mode, visual=opts, notes=notes)
             after = scan(out)
-            return before, out, notes, after, _counts("scrubbed")
+            return before, out, notes, after, _counts(None if relayed else "scrubbed")
         try:
             before, out, notes, after, totals = await run_in_threadpool(work)
         except (ValueError, RuntimeError) as e:
