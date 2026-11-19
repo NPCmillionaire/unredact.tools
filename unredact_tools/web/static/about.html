@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>About · unredact.tools</title>
-<meta name="description" content="Why unredact.tools exists: every file carries more than what's on screen. Find out what yours leaks, then get a clean copy.">
+<meta name="description" content="unredact.tools started as an internal tool to keep my clients safe. Here's where it came from, who it's for, and what it does.">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 </head>
@@ -21,20 +21,34 @@
 
 <main class="prose">
   <p class="eyebrow">About</p>
-  <h1>If you send this, what does the other person <span class="hl">learn about you</span>?</h1>
-  <p class="lede">unredact.tools answers that question for any photo, PDF, Office document or media file, then gives you a copy that answers “nothing.”</p>
+  <h1>Built to keep my clients <span class="hl">safe</span>.</h1>
+  <p class="lede">unredact.tools didn't start as a website. It started as an internal tool I wrote for my clients, so nothing they sent out could give them away.</p>
 
-  <h2>Files say more than they show</h2>
-  <p>Every file carries more than what's on screen: GPS coordinates, camera serial numbers, usernames, earlier drafts, deleted text, comments, and invisible watermarks that identify exactly whose copy leaked. Most of it is added without you ever seeing it.</p>
+  <h2>Where it came from</h2>
+  <p>My clients send files to people they can't fully trust: a photo to a stranger, a filing to a court, a document to a reporter. Each of those files can carry far more than what's on screen. A phone photo can hold the exact spot it was taken and the serial number of the phone. A PDF can hold the text under its black boxes. A Word file can hold every edit and every name that touched it.</p>
+  <p>Checking all of that by hand, file by file, was slow and easy to get wrong. So I wrote a tool to do it. Before anything left a client's hands, it went through this first: scan it, see exactly what it gives away, then send a clean copy instead.</p>
+  <p>Every time a new kind of leak turned up, I added a check for it. It started with GPS coordinates and device serials. Then came failed redactions, tracked changes and hidden text, then printer tracking dots, faces, license plates and even shadows that can date a photo.</p>
+  <p>None of these mistakes are unique to my clients. They happen to anyone who shares a file. So the tool is now public, free to use and open source.</p>
 
-  <h2>People get caught this way</h2>
+  <h2>Who it's for</h2>
+  <p>Anyone whose safety, case or livelihood depends on what their files <em>don't</em> say:</p>
+  <ul>
+    <li><strong>Journalists and their sources</strong>, who need a leaked document to reveal the story without revealing whose copy it was.</li>
+    <li><strong>Whistleblowers</strong> handing over evidence without handing over their identity.</li>
+    <li><strong>Lawyers and paralegals</strong> filing redacted documents that have to stay redacted.</li>
+    <li><strong>People escaping stalking or abuse</strong>, sharing photos without giving away where they live now.</li>
+    <li><strong>Activists and organizers</strong> posting from protests and meetings without exposing the people in the shot.</li>
+    <li><strong>Investigators and researchers</strong> who handle sensitive material and need to pass it on cleanly.</li>
+    <li><strong>Everyone else</strong> who sells something online, posts a photo, or emails a document and would rather it didn't say more than intended.</li>
+  </ul>
+
+  <h2>This happens to real people</h2>
   <table>
     <thead><tr><th>Year</th><th>What happened</th></tr></thead>
     <tbody>
       <tr><td>2012</td><td>John McAfee was located while hiding from authorities, from the GPS data in a photo a journalist posted.</td></tr>
       <tr><td>2017</td><td>The source of a leaked NSA document was identified from printer tracking dots on the scan, which revealed the printer and when it printed.</td></tr>
       <tr><td>2019</td><td>Paul Manafort's lawyers filed a “redacted” PDF with black boxes drawn over text that was still there. Reporters copied it out within minutes.</td></tr>
-      <tr><td>Always</td><td>Tracked changes, comments, author usernames and earlier saved versions ride along in everyday Office and PDF files.</td></tr>
     </tbody>
   </table>
 
@@ -43,7 +57,6 @@
     <li><strong>Scan.</strong> Finds what's leaking and explains it in plain English: where, who, which device, when, what software, which organization, what's hidden and what's tracking you.</li>
     <li><strong>Sanitize.</strong> Rebuilds a clean copy from the visible content only, then re-scans that copy to prove nothing survived. Your original file is never modified.</li>
   </ul>
-  <p>Good tools already exist (ExifTool, mat2, Dangerzone), but each does one job and none of them explains the risk. unredact.tools does detection, explanation and cleaning in one place.</p>
 
   <h2>Your files</h2>
   <p>Uploads are processed in a temporary folder that is deleted before the response is sent. Nothing is stored or logged, and the site uses no cookies, analytics or third-party scripts. For anything truly sensitive, run it on your own machine instead:</p>
