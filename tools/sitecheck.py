@@ -54,7 +54,7 @@ WALLETS = ("46yuwxTQphAMVk44rFkBkW15Qp6dPEdGD25LsFLyAiiHCnb9TXEovTzU7d9yCM9SA3Y4
 HEADERS = {
     "content-security-policy": "default-src 'self'",
     "x-content-type-options": "nosniff",
-    "cache-control": "no-store",
+    "cache-control": "public",
     "x-frame-options": "DENY",
 }
 # sample file -> extra sanitize options it needs to come out clean
@@ -103,8 +103,10 @@ def request(url: str, data: bytes | None = None, headers: dict | None = None,
             return r.status, r.headers, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.headers, e.read()
-    except (OSError, ValueError) as e:
+    except OSError as e:
         return 0, {}, str(e).encode()
+    except ValueError:  # its message can quote a header value, which may be the token
+        return 0, {}, b"invalid request"
 
 
 def multipart(fields: dict, filename: str, content: bytes) -> tuple[bytes, str]:
@@ -313,7 +315,11 @@ def main() -> int:
     token = os.environ.get("UNREDACT_RELAY_TOKEN", "").strip()
     if args.token_file:
         raw = Path(args.token_file).expanduser().read_text().strip()
-        token = raw.split("=", 1)[1].strip() if "=" in raw else raw
+        if "=" in raw:  # an env file: take the UNREDACT_RELAY_TOKEN line
+            lines = dict(line.split("=", 1) for line in raw.splitlines() if "=" in line)
+            token = lines.get("UNREDACT_RELAY_TOKEN", "").strip()
+        else:
+            token = raw
 
     print(f"sitecheck {base}  {time.strftime('%Y-%m-%d %H:%M:%S')}")
     check = Check(args.verbose)
