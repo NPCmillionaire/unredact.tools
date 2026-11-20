@@ -453,6 +453,11 @@ def contact():
     return FileResponse(str(STATIC / "contact.html"))
 
 
+@app.get("/sites")
+def sites():
+    return FileResponse(str(STATIC / "sites.html"))
+
+
 TOPICS = {"general": "Question", "leak": "Missed leak", "security": "Security issue",
           "bug": "Bug", "other": "Other"}
 EMAIL_RE = re.compile(r"[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,}")
