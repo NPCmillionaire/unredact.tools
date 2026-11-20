@@ -46,8 +46,12 @@
     return frag;
   };
 
+  // On unredact.tools the pages sit behind a CDN; uploads go straight to the server so the
+  // CDN never sees anyone's files. Anywhere else (self-hosted, onion) it's the same origin.
+  const API = location.hostname === "unredact.tools" ? "https://api.unredact.tools" : "";
+
   async function api(path, form) {
-    const res = await fetch(path, { method: "POST", body: form });
+    const res = await fetch(API + path, { method: "POST", body: form });
     let data;
     try { data = await res.json(); } catch { data = {}; }
     if (!res.ok) throw new Error(data.detail || `server error ${res.status}`);
@@ -258,13 +262,13 @@
   }
 
   // ---------- boot ----------
-  fetch("/api/info").then((r) => r.json()).then((i) => {
+  fetch(API + "/api/info").then((r) => r.json()).then((i) => {
     info = i;
     $("#ver").textContent = `v${i.version}`;
     showCounts(i.totals);
     if (!i.ffmpeg) $("#supports").textContent = $("#supports").textContent.replace(" · MP4 · MOV · MP3", "");
   }).catch(() => {});
-  const tip = () => fetch("/api/tip").then((r) => r.json()).then((t) => { $("#tip").textContent = t.tip; $("#tip-box").hidden = false; }).catch(() => {});
+  const tip = () => fetch(API + "/api/tip").then((r) => r.json()).then((t) => { $("#tip").textContent = t.tip; $("#tip-box").hidden = false; }).catch(() => {});
   $("#tip-next").onclick = tip;
   tip();
 })();

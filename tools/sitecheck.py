@@ -5,6 +5,7 @@
     python tools/sitecheck.py --url http://127.0.0.1:8000
     python tools/sitecheck.py --tor                    # also check the onion mirror
     python tools/sitecheck.py --send-email             # also send one real contact message
+    python tools/sitecheck.py --expect-cloudflare      # pages must come through Cloudflare
 
 Checks pages, security headers, /api/info (ffmpeg, OCR, upload limit), the
 contact form, relay auth, and a scan + sanitize of leaky sample files: each
@@ -257,6 +258,27 @@ def check_uploads(base: str, check: Check, token: str, files: dict[str, Path]):
               + ("" if s == 200 else f", status {s}: {r.get('detail')}"))
 
 
+def check_split(base: str, api: str, check: Check, expect_cf: bool):
+    """Pages on the main host (maybe behind a CDN), uploads and messages on a direct API host."""
+    check.section(f"page / api split ({api})")
+    s, h, _ = request(base + "/")
+    check("pages allow connecting to the API host",
+          api in (h.get("content-security-policy", "") if h else ""))
+    check("pages are cacheable", (h.get("cache-control", "") if h else "").startswith("public"))
+    if expect_cf:
+        check("pages come through Cloudflare", bool(h and h.get("cf-ray")),
+              (h.get("server", "") if h else ""))
+    s, h, _ = request(api + "/api/info", headers={"Origin": base})
+    check("API answers cross-origin requests from the site",
+          s == 200 and h.get("access-control-allow-origin") == base,
+          f"status {s}, allow-origin {h.get('access-control-allow-origin') if h else None}")
+    check("API host is reached directly, not through Cloudflare", bool(h) and not h.get("cf-ray"))
+    check("API responses are never cached", h.get("cache-control") == "no-store" if h else False)
+    s, h, _ = request(api + "/about")
+    check("API host sends page requests to the site", s == 301 and
+          (h.get("location", "") if h else "") == base + "/about", f"status {s}")
+
+
 def check_tor(check: Check, proxy: str):
     check.section("onion mirror")
     for path in ("/", "/about", "/contact", "/donate", "/pgp.txt"):
@@ -271,6 +293,10 @@ def check_tor(check: Check, proxy: str):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--url", default="https://unredact.tools")
+    ap.add_argument("--api-url", help="where uploads go (default: api.unredact.tools for the "
+                    "public site, otherwise the same as --url)")
+    ap.add_argument("--expect-cloudflare", action="store_true",
+                    help="fail unless pages are served through Cloudflare")
     ap.add_argument("--token-file", help="file holding UNREDACT_RELAY_TOKEN "
                     "(a bare token, or a KEY=value env file)")
     ap.add_argument("--min-mb", type=int, default=200, help="expected upload limit")
@@ -281,6 +307,8 @@ def main() -> int:
     ap.add_argument("-v", "--verbose", action="store_true", help="show details for passing checks")
     args = ap.parse_args()
     base = args.url.rstrip("/")
+    api = (args.api_url or ("https://api.unredact.tools" if base == "https://unredact.tools"
+                            else base)).rstrip("/")
 
     token = os.environ.get("UNREDACT_RELAY_TOKEN", "").strip()
     if args.token_file:
@@ -291,9 +319,11 @@ def main() -> int:
     check = Check(args.verbose)
     started = time.time()
     check_pages(base, check)
-    info = check_info(base, check, args.min_mb)
+    info = check_info(api, check, args.min_mb)
     before = (info or {}).get("totals")
-    check_contact(base, check, args.send_email)
+    if api != base:
+        check_split(base, api, check, args.expect_cloudflare)
+    check_contact(api, check, args.send_email)
 
     if args.no_uploads:
         pass
@@ -302,10 +332,10 @@ def main() -> int:
               "uploads without it would count toward the public totals")
     else:
         with tempfile.TemporaryDirectory(prefix="sitecheck-") as tmp:
-            check_uploads(base, check, token, samples(Path(tmp)))
+            check_uploads(api, check, token, samples(Path(tmp)))
 
     if before is not None:
-        _, _, b = request(base + "/api/info")
+        _, _, b = request(api + "/api/info")
         try:
             after = json.loads(b).get("totals")
         except ValueError:

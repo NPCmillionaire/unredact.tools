@@ -1,5 +1,9 @@
 // Show the result of a /contact form submission (the server redirects back with ?sent or ?error=).
 (() => {
+  // same split as app.js: messages go straight to the server, never through the CDN
+  if (location.hostname === "unredact.tools") {
+    document.getElementById("form").action = "https://api.unredact.tools/api/contact";
+  }
   const q = new URLSearchParams(location.search);
   const msgs = {
     off: "The contact form isn't set up on this server. Please use email instead.",

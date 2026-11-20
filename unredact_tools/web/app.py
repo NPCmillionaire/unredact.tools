@@ -12,6 +12,9 @@ Env:
   UNREDACT_WORKERS   concurrent scans/sanitizes (default 2; OCR is CPU-heavy)
   UNREDACT_CORS      comma-separated origins allowed to call the API from another
                      site, e.g. https://unredact.tools (for the Cloudflare Pages site)
+  UNREDACT_API_ORIGIN    separate origin for uploads and the contact form, e.g.
+                         https://api.unredact.tools, so a CDN in front of the pages never
+                         sees files or messages. On that host only /api/* is served.
   UNREDACT_CONTACT_TO    address the /contact form emails (form is off when unset)
   UNREDACT_CONTACT_FROM  sender address for those emails (default noreply@<host>)
   UNREDACT_SMTP          SMTP relay host[:port] (default localhost:25)
@@ -68,6 +71,8 @@ ARTIFACT_CAP = 25 * 1024 * 1024  # inline recovered artifacts up to this total s
 STATIC = resources.files(__package__) / "static"
 GUIDE_DIR = resources.files(__package__) / "guides"
 SITE = "https://unredact.tools"  # canonical origin for the sitemap and link tags
+API_ORIGIN = os.environ.get("UNREDACT_API_ORIGIN", "").strip().rstrip("/")
+API_HOST = API_ORIGIN.split("://", 1)[-1] if API_ORIGIN else ""
 ROOT_ICONS = {"/favicon.ico": "favicon.ico", "/apple-touch-icon.png": "apple-touch-icon.png"}
 INDEXNOW_KEY = "2dec584e80c69d02f5f37e8360239dd4"  # public by design; see tools/indexnow.py  # gitleaks:allow
 # Named so the intent is explicit for AI search and assistant crawlers; all get the same rules.
@@ -178,14 +183,17 @@ if CORS:
 @app.middleware("http")
 async def headers(request: Request, call_next):
     host = request.headers.get("host", "")
+    query = f"?{request.url.query}" if request.url.query else ""
     if host.startswith("www."):  # one canonical host for search engines
-        query = f"?{request.url.query}" if request.url.query else ""
         resp = RedirectResponse(f"https://{host[4:]}{request.url.path}{query}", status_code=301)
+    elif API_HOST and host == API_HOST and not request.url.path.startswith("/api/"):
+        resp = RedirectResponse(f"{SITE}{request.url.path}{query}", status_code=301)  # pages live on SITE
     else:
         resp = await call_next(request)
-    # assets carry no user data, so let browsers keep them; everything else stays no-store
-    static = request.url.path.startswith("/static/") or request.url.path in ROOT_ICONS
-    resp.headers["Cache-Control"] = "public, max-age=86400" if static else "no-store"
+    # pages and assets carry no user data, so browsers and a CDN may cache them briefly
+    # (short enough that a deploy shows up within minutes); API responses are never stored
+    cacheable = request.method == "GET" and not request.url.path.startswith("/api/")
+    resp.headers["Cache-Control"] = "public, max-age=600" if cacheable else "no-store"
     resp.headers["Strict-Transport-Security"] = "max-age=31536000"  # ignored over plain http
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
@@ -193,7 +201,8 @@ async def headers(request: Request, call_next):
     resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     resp.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
-        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+        f"connect-src 'self'{' ' + API_ORIGIN if API_ORIGIN else ''}; object-src 'none'; "
+        "base-uri 'none'; frame-ancestors 'none'")
     return resp
 
 
@@ -474,8 +483,10 @@ async def contact_send(request: Request, name: str = Form(""), email: str = Form
                        topic: str = Form("general"), message: str = Form(""),
                        website: str = Form("")):
     """Email a contact-form message. Nothing is stored; the reply goes to /contact."""
-    def back(status: str):
-        return RedirectResponse(f"/contact?{status}#form", status_code=303)
+    direct = bool(API_HOST) and request.headers.get("host", "") == API_HOST
+
+    def back(status: str):  # from the API host, send people back to the page they came from
+        return RedirectResponse(f"{SITE if direct else ''}/contact?{status}#form", status_code=303)
 
     if website:  # honeypot: only bots fill the hidden field
         return back("sent")
@@ -485,7 +496,9 @@ async def contact_send(request: Request, name: str = Form(""), email: str = Form
     email = _one_line(email, 254)
     if not message or len(message) > 5000 or (email and not EMAIL_RE.fullmatch(email)):
         return back("error=invalid")
-    who = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+    # trust the CDN's client-IP header only where the CDN sits; the API host is reached directly
+    who = None if direct else request.headers.get("cf-connecting-ip")
+    who = who or (request.client.host if request.client else "?")
     if not _relayed(request) and _rate_limited(who):  # the relay rate-limits its own users
         return back("error=busy")
 

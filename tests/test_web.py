@@ -41,7 +41,7 @@ def post(path, fx, name, **form):
 def test_index_and_headers():
     r = client.get("/")
     assert r.status_code == 200 and "unredact" in r.text
-    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["cache-control"] == "public, max-age=600"
     assert "default-src 'self'" in r.headers["content-security-policy"]
     for asset in ("app.js", "app.css", "favicon.svg"):
         assert client.get(f"/static/{asset}").status_code == 200
@@ -52,12 +52,12 @@ def test_about_and_contact():
     for path, text in (("/about", "What it does"), ("/contact", "mailto:"), ("/donate", "bc1q8hdtgw3f8fan587ey3jqy073d0wv2k07vu98d9")):
         r = client.get(path)
         assert r.status_code == 200 and text in r.text
-        assert r.headers["cache-control"] == "no-store"
+        assert r.headers["cache-control"] == "public, max-age=600"
 
 
 def test_caching_compression_and_www_redirect():
     assert client.get("/static/app.css").headers["cache-control"].startswith("public")
-    assert client.get("/").headers["cache-control"] == "no-store"
+    assert client.get("/api/tip").headers["cache-control"] == "no-store"
     assert client.get("/", headers={"accept-encoding": "gzip"}).headers.get("content-encoding") == "gzip"
     assert "content-encoding" not in client.get("/api/tip", headers={"accept-encoding": "gzip"}).headers
     r = client.get("/about?x=1", headers={"host": "www.unredact.tools"}, follow_redirects=False)
@@ -253,3 +253,23 @@ def test_security_txt():
         assert "Contact" in fields and fields["Canonical"].endswith("/.well-known/security.txt")
         assert datetime.fromisoformat(fields["Expires"].replace("Z", "+00:00")) > datetime.now(timezone.utc)
     assert "BEGIN PGP PUBLIC KEY BLOCK" in client.get("/pgp.txt").text
+
+
+def test_api_origin_split(monkeypatch):
+    monkeypatch.setattr(web, "API_ORIGIN", "https://api.example.test")
+    monkeypatch.setattr(web, "API_HOST", "api.example.test")
+    r = client.get("/about")
+    assert "connect-src 'self' https://api.example.test" in r.headers["content-security-policy"]
+    assert r.headers["cache-control"] == "public, max-age=600"
+    assert client.get("/api/info").headers["cache-control"] == "no-store"
+    r = client.get("/about?x=1", headers={"host": "api.example.test"}, follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == web.SITE + "/about?x=1"
+    assert client.get("/api/info", headers={"host": "api.example.test"}).status_code == 200
+
+    monkeypatch.setattr(web, "_send", lambda msg: None)
+    monkeypatch.setattr(web, "_recent", {})
+    monkeypatch.setattr(web, "CONTACT_TO", "owner@example.com")
+    r = client.post("/api/contact", data={"message": "hi"}, follow_redirects=False,
+                    headers={"host": "api.example.test", "cf-connecting-ip": "1.2.3.4"})
+    assert r.headers["location"] == web.SITE + "/contact?sent#form"
+    assert "1.2.3.4" not in web._recent  # spoofable on the direct host, so not trusted there
