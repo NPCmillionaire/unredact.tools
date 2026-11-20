@@ -34,6 +34,7 @@ Homepage = "https://unredact.tools"
 Guides = "https://unredact.tools/guides"
 Source = "https://github.com/NPCmillionaire/unredact.tools"
 Issues = "https://github.com/NPCmillionaire/unredact.tools/issues"
+Developer = "https://legitbiz.xyz"
 
 [project.scripts]
 "unredact.tools" = "unredact_tools.cli:main"
