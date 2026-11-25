@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inspect · unredact.tools</title>
+<link rel="icon" href="../icons/32.png">
+<link rel="stylesheet" href="../shared/ui.css">
+<link rel="stylesheet" href="report.css">
+<script type="module" src="report.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="https://unredact.tools" target="_blank" rel="noreferrer"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav><a href="#" id="pick">Inspect another file</a> · <a href="../options/options.html">Settings</a></nav>
+</header>
+<main>
+  <section id="drop" class="drop" hidden>
+    <h1>What does this file give away?</h1>
+    <p class="lede">Drop a photo, PDF or Office file. It's checked on this device; nothing is uploaded.</p>
+    <label class="zone" id="zone" tabindex="0">
+      <input type="file" id="file" hidden>
+      <strong>Drop a file here</strong><span>or click to choose</span>
+    </label>
+  </section>
+
+  <section id="loading" class="loading" hidden><span class="spin"></span><span id="loadmsg">Fetching file…</span></section>
+  <section id="err" class="err" hidden></section>
+
+  <section id="result" hidden>
+    <div class="file">
+      <div>
+        <div class="fname" id="fname"></div>
+        <div class="fmeta" id="fmeta"></div>
+      </div>
+      <div class="counts" id="counts"></div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+
+    <div class="actions" id="actions">
+      <button class="btn primary" id="clean">Download clean copy</button>
+      <button class="btn ghost" id="orig">Download original</button>
+      <button class="btn ghost" id="deep" hidden>Deep scan with local unredact.tools</button>
+    </div>
+    <div class="cleanres" id="cleanres" hidden></div>
+
+    <h2 id="gives-h">What this file gives away</h2>
+    <table class="facts" id="facts"></table>
+
+    <h2>Findings</h2>
+    <div id="findings"></div>
+
+    <div id="artifacts-wrap" hidden>
+      <h2>Recovered from inside the file</h2>
+      <div id="artifacts" class="artifacts"></div>
+    </div>
+
+    <div id="deep-wrap" hidden>
+      <h2>Local deep scan</h2>
+      <p class="muted" id="deep-note"></p>
+      <div id="deepfindings"></div>
+    </div>
+
+    <p class="foot">Checked in your browser by the unredact.tools extension. The file was not uploaded anywhere.</p>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · unredact.tools</title>
+<link rel="icon" href="../icons/32.png">
+<link rel="stylesheet" href="../shared/ui.css">
+<style>
+  main { max-width: 720px; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 30px; letter-spacing: -.025em; margin: 20px 0 6px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin: 34px 0 10px; }
+  .lede { color: var(--muted); margin: 0; }
+  .welcome { background: rgba(255, 138, 31, .08); border: 1px solid rgba(255, 138, 31, .3); border-radius: var(--r); padding: 14px 16px; margin-top: 20px; }
+  .list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+  .item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .item .lbl { flex: 1; min-width: 0; }
+  .item .sub { color: var(--dim); font: 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0; }
+  .grid .item { border-top: 1px solid var(--line); }
+  select, input[type=text], input[type=number] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: 14px var(--sans); }
+  input[type=text] { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; }
+  input[type=number] { width: 80px; }
+  .add { display: flex; gap: 8px; margin-top: 10px; }
+  .rm { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; }
+  .rm:hover { color: var(--high); }
+  .saved { color: var(--ok); font-size: 13px; opacity: 0; transition: opacity .2s; margin-left: 8px; }
+  .saved.on { opacity: 1; }
+  .foot { color: var(--dim); font-size: 13px; margin-top: 40px; }
+</style>
+<script type="module" src="options.js"></script>
+</head>
+<body>
+<main>
+  <span class="brand"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></span><span class="saved" id="saved">Saved</span>
+  <h1>Settings</h1>
+  <p class="lede">Files are checked and cleaned on this device. Nothing is sent to unredact.tools or anyone else.</p>
+  <div class="welcome" id="welcome" hidden>
+    <b>You're set up.</b> Uploads on the sites below are now checked before they're sent. Pages that were already open need a reload.
+    Right-click any image, PDF or download link and choose <b>Inspect with unredact.tools</b> to audit files you find online.
+  </div>
+
+  <h2>Clean before send</h2>
+  <div class="list grid" id="sites"></div>
+
+  <h2>Other sites</h2>
+  <div class="list" id="custom"></div>
+  <form class="add" id="addform">
+    <input type="text" id="newsite" placeholder="https://example.com/*" aria-label="Site pattern" required>
+    <button class="btn ghost" type="submit">Add site</button>
+  </form>
+
+  <h2>Behaviour</h2>
+  <div class="list">
+    <div class="item"><div class="lbl">Warn about<div class="sub">lowest severity that counts as a leak</div></div>
+      <select id="minSeverity"><option value="critical">critical only</option><option value="high">high and up</option><option value="medium">medium and up</option><option value="low">everything</option></select></div>
+    <div class="item"><div class="lbl">Clean automatically<div class="sub">skip the prompt and always upload the cleaned copy</div></div>
+      <label class="switch"><input type="checkbox" id="autoClean" aria-label="Clean automatically"><span></span></label></div>
+    <div class="item"><div class="lbl">Hide the "no leaks" confirmation</div>
+      <label class="switch"><input type="checkbox" id="quietWhenClean" aria-label="Hide no-leaks confirmation"><span></span></label></div>
+    <div class="item"><div class="lbl">Skip files larger than<div class="sub">bigger uploads go through unchecked</div></div>
+      <span><input type="number" id="maxMB" min="1" max="45"> MB</span></div>
+    <div class="item"><div class="lbl">Local deep scan<div class="sub">address of <code>unredact.tools web</code> on this machine; leave empty to disable</div></div>
+      <input type="text" id="deepScanUrl" style="max-width:220px"></div>
+  </div>
+
+  <p class="foot">The extension reads PDFs, photos and Office files in the browser. Visual checks (faces, plates, text in screenshots, printer dots) need the full tool: <code>pip install unredact-tools[all]</code>, then <code>unredact.tools web</code>, and use “Deep scan” on a report.</p>
+</main>
+</body>
+</html>

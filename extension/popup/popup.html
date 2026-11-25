@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>unredact.tools</title>
+<link rel="stylesheet" href="../shared/ui.css">
+<style>
+  body { width: 320px; padding: 14px 16px 12px; font-size: 14px; }
+  .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .brand { font-size: 15px; }
+  .head a { color: var(--muted); font-size: 12px; text-decoration: none; }
+  .head a:hover { color: var(--text); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row .lbl { flex: 1; min-width: 0; }
+  .host { font: 600 13px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .status-on { color: var(--ok); }
+  .btn { width: 100%; margin-top: 8px; display: block; }
+  .foot { color: var(--dim); font-size: 11.5px; margin-top: 8px; line-height: 1.4; }
+</style>
+<script type="module" src="popup.js"></script>
+</head>
+<body>
+  <div class="head">
+    <span class="brand"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></span>
+    <a href="#" id="opts">Settings</a>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="lbl">
+        <div class="host" id="host">this site</div>
+        <div class="sub" id="status">Clean before send is off here</div>
+      </div>
+      <label class="switch" title="Check uploads on this site"><input type="checkbox" id="toggle" aria-label="Check uploads on this site"><span></span></label>
+    </div>
+    <div class="sub" id="reload" hidden>Reload the page to apply.</div>
+  </div>
+
+  <button class="btn primary" id="inspect-page" hidden>Inspect the file in this tab</button>
+  <button class="btn ghost" id="inspect-local">Inspect a file on this computer…</button>
+
+  <p class="foot">Right-click any image, PDF or download link and choose <b>Inspect with unredact.tools</b>. Everything is checked on this device.</p>
+</body>
+</html>
