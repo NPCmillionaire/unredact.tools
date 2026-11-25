@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Privacy · unredact.tools</title>
+<meta name="description" content="What happens to your files on unredact.tools and in the unredact.tools Chrome extension.">
+<link rel="canonical" href="https://unredact.tools/privacy">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="unredact.tools">
+<meta property="og:title" content="Privacy · unredact.tools">
+<meta property="og:description" content="What happens to your files on unredact.tools and in the unredact.tools Chrome extension.">
+<meta property="og:url" content="https://unredact.tools/privacy">
+<meta property="og:image" content="https://unredact.tools/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/donate">Donate</a>
+    <a href="https://github.com/NPCmillionaire/unredact.tools" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </nav>
+</header>
+
+<main class="prose">
+  <p class="eyebrow">Privacy</p>
+  <h1>What happens to your <span class="hl">files</span>.</h1>
+  <p class="lede">Short version: the website looks at a file long enough to answer you, then it's gone. The Chrome extension never sends your files anywhere.</p>
+
+  <h2>Files you upload to the website</h2>
+  <ul>
+    <li>Each file is written to a private temporary folder on the scanning server, processed, and the folder is deleted before the response is sent back to you.</li>
+    <li>We don't keep copies, thumbnails, hashes or reports. The clean copy is sent straight to your browser and isn't stored.</li>
+    <li>Filenames are never logged. The scanning server has access logging turned off.</li>
+  </ul>
+
+  <h2>The Chrome extension</h2>
+  <p>The extension scans and cleans files inside your browser, on your device. It has no server, no account and no analytics.</p>
+  <ul>
+    <li><b>Files are never uploaded by the extension.</b> When you right-click a file and choose “Inspect with unredact.tools”, the extension downloads that one file from the site it's on, the same way your browser would, and reads it locally. When it checks an upload on a protected site, it reads the file you picked before the site does. Either way the file stays in your browser's memory and is discarded when you close the report or after 15 minutes.</li>
+    <li><b>What it stores:</b> only your settings (which sites are protected, your own added sites, severity and size limits). They're kept in Chrome's extension storage on your device.</li>
+    <li><b>What it reads on web pages:</b> on protected sites it watches for file pickers and dropped files. It doesn't read, collect or transmit page content, messages, browsing history or anything you type.</li>
+    <li><b>Why it asks for access to all websites:</b> so it can fetch any file you right-click, wherever it's hosted, and so it can protect sites you add yourself. It acts only when you right-click a file or upload on a protected site.</li>
+    <li><b>Deep scan (optional):</b> if you run <code>unredact.tools web</code> on your own computer and press “Deep scan”, the extension sends the file to that local address (by default <code>127.0.0.1</code>, which never leaves your machine). If you point it at another address, the file goes there instead.</li>
+    <li>We don't sell, share or transfer any data, because the extension doesn't send us any.</li>
+  </ul>
+
+  <h2>What we collect on the website</h2>
+  <ul>
+    <li>No cookies, no analytics, no tracking pixels, no third-party scripts or fonts.</li>
+    <li>This site is served through Cloudflare, which handles the connection and can see traffic passing through it. Cloudflare's own privacy policy applies to that.</li>
+  </ul>
+
+  <h2>Don't want to trust any server?</h2>
+  <p>Then don't. The whole tool, extension included, is <a href="https://github.com/NPCmillionaire/unredact.tools">open source</a> and runs offline: <code>pip install "unredact-tools[web]"</code>, then <code>unredact.tools web</code>.</p>
+
+  <h2>Questions</h2>
+  <p>Use the <a href="/contact">contact form</a>. Last updated 25 November 2026.</p>
+</main>
+
+<footer>
+  <span>unredact.tools</span>
+  <span>Original files are never modified. Every clean copy is re-scanned before you get it.</span>
+  <span>Tor mirror: <a class="onion" href="http://unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion/" rel="noopener noreferrer">unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion</a></span>
+  <span><a href="/guides">Guides</a></span>
+  <span>Developed by <a href="https://research.legitbiz.xyz" rel="noopener noreferrer">legit{biz} --research</a></span>
+</footer>
+</body>
+</html>

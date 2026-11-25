@@ -453,6 +453,11 @@ def contact():
     return FileResponse(str(STATIC / "contact.html"))
 
 
+@app.get("/privacy")
+def privacy():
+    return FileResponse(str(STATIC / "privacy.html"))
+
+
 @app.get("/sites")
 def sites():
     return FileResponse(str(STATIC / "sites.html"))
@@ -597,7 +602,7 @@ def llms_txt():  # a plain summary for AI assistants and their crawlers (llmstxt
 
 @app.get("/sitemap.xml")
 def sitemap():
-    paths = ["/", "/about", "/contact", "/donate", "/guides", *(f"/{s}" for s in GUIDES)]
+    paths = ["/", "/about", "/privacy", "/contact", "/donate", "/guides", *(f"/{s}" for s in GUIDES)]
     urls = "".join(f"  <url><loc>{SITE}{p}</loc></url>\n" for p in paths)
     return Response('<?xml version="1.0" encoding="UTF-8"?>\n'
                     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
