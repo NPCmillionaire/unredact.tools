@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Privacy · unredact.tools</title>
-<meta name="description" content="What happens to your files on unredact.tools and in the unredact.tools Chrome extension.">
+<meta name="description" content="What happens to your files on unredact.tools, in the Chrome extension and in the Android app.">
 <link rel="canonical" href="https://unredact.tools/privacy">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="unredact.tools">
 <meta property="og:title" content="Privacy · unredact.tools">
-<meta property="og:description" content="What happens to your files on unredact.tools and in the unredact.tools Chrome extension.">
+<meta property="og:description" content="What happens to your files on unredact.tools, in the Chrome extension and in the Android app.">
 <meta property="og:url" content="https://unredact.tools/privacy">
 <meta property="og:image" content="https://unredact.tools/static/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -33,7 +33,7 @@
 <main class="prose">
   <p class="eyebrow">Privacy</p>
   <h1>What happens to your <span class="hl">files</span>.</h1>
-  <p class="lede">Short version: the website looks at a file long enough to answer you, then it's gone. The Chrome extension never sends your files anywhere.</p>
+  <p class="lede">Short version: the website looks at a file long enough to answer you, then it's gone. The Chrome extension and the Android app never send your files anywhere.</p>
 
   <h2>Files you upload to the website</h2>
   <ul>
@@ -53,6 +53,15 @@
     <li>We don't sell, share or transfer any data, because the extension doesn't send us any.</li>
   </ul>
 
+  <h2 id="android">The Android app</h2>
+  <p>The unredact Android app processes photos entirely on your phone. It doesn't request internet access, so Android won't let it transmit photos, results or anything else.</p>
+  <ul>
+    <li><b>No data collected:</b> no accounts, analytics, crash reporting or ads. We don't receive anything from the app.</li>
+    <li><b>Where clean copies go:</b> to the app's private cache, which is cleared at the start of each session, and, only if you tap Save, to Pictures/unredact on your phone. If you tap Share, the copy goes to whichever app you pick.</li>
+    <li><b>Why it asks for “media location”:</b> without it, Android hides a photo's GPS tags from the app but leaves them in the file you'd send. The app reads them only to show you, and they never leave your phone. You can say no: everything else still works, and the clean copy has no GPS either way.</li>
+    <li>Face and barcode detection run on the phone too, using the same open-source models as the desktop tool.</li>
+  </ul>
+
   <h2>What we collect on the website</h2>
   <ul>
     <li>No cookies, no analytics, no tracking pixels, no third-party scripts or fonts.</li>
@@ -60,7 +69,7 @@
   </ul>
 
   <h2>Don't want to trust any server?</h2>
-  <p>Then don't. The whole tool, extension included, is <a href="https://github.com/NPCmillionaire/unredact.tools">open source</a> and runs offline: <code>pip install "unredact-tools[web]"</code>, then <code>unredact.tools web</code>.</p>
+  <p>Then don't. The whole tool, extension and Android app included, is <a href="https://github.com/NPCmillionaire/unredact.tools">open source</a> and runs offline: <code>pip install "unredact-tools[web]"</code>, then <code>unredact.tools web</code>.</p>
 
   <h2>Questions</h2>
   <p>Use the <a href="/contact">contact form</a>. Last updated 25 November 2026.</p>
