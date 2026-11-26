@@ -1,23 +1,41 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "unredact-tools"
 version = "0.2.0"
 description = "See what metadata and hidden content your files leak, then scrub them."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+keywords = ["metadata", "exif", "gps", "redaction", "pdf", "privacy", "opsec", "osint", "sanitize",
+            "printer tracking dots"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Topic :: Security",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Office/Business",
+]
 dependencies = ["pillow>=10.3", "pymupdf>=1.24", "pikepdf>=8", "lxml>=5"]
 
 [project.optional-dependencies]
 heic = ["pillow-heif>=0.16"]
 vision = ["opencv-python-headless>=4.8", "zxing-cpp>=2.2", "numpy>=1.24"]
-dev = ["pytest", "piexif", "python-docx>=1.2", "openpyxl", "python-pptx"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 geo = ["geonamescache>=2.0"]
-all = ["unredact-tools[heic,vision,geo]"]
+dev = ["pytest", "httpx", "piexif", "python-docx>=1.2", "openpyxl", "python-pptx"]
+all = ["unredact-tools[heic,vision,web,geo]"]
 
 [project.urls]
-Homepage = "https://github.com/NPCmillionaire/unredact.tools"
+Homepage = "https://unredact.tools"
+Guides = "https://unredact.tools/guides"
+Source = "https://github.com/NPCmillionaire/unredact.tools"
+Issues = "https://github.com/NPCmillionaire/unredact.tools/issues"
+Developer = "https://legitbiz.xyz"
 
 [project.scripts]
 "unredact.tools" = "unredact_tools.cli:main"
@@ -25,7 +43,8 @@ unredact = "unredact_tools.cli:main"
 unredact-file = "unredact_tools.cli:main"  # legacy alias
 
 [tool.setuptools]
-packages = ["unredact_tools", "unredact_tools.models"]
+packages = ["unredact_tools", "unredact_tools.models", "unredact_tools.web"]
 
 [tool.setuptools.package-data]
 "unredact_tools.models" = ["*.onnx", "LICENSE-*", "README.md"]
+"unredact_tools.web" = ["static/*", "guides/*"]

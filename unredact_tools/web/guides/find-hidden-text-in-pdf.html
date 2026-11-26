@@ -1,0 +1,33 @@
+    <h2>Where text hides in a PDF</h2>
+    <ul>
+      <li><strong>Invisible formatting</strong>: white text on a white page, fully transparent text, or text set at a fraction of a point.</li>
+      <li><strong>Off the page</strong>: text placed outside the visible page area. It's still in the file and still selectable.</li>
+      <li><strong>Under black boxes</strong>: failed redactions, where a shape covers words that were never removed.</li>
+      <li><strong>Hidden layers</strong>: PDFs can have layers that are switched off by default.</li>
+      <li><strong>Earlier versions</strong>: edits are often added to the end of the file, so the original text can still be inside. The scan rebuilds every saved version and lists the text deleted since.</li>
+      <li><strong>Attachments</strong>: files embedded in the PDF, each scanned in turn.</li>
+      <li><strong>Comments and annotations</strong>, including ones that aren't shown.</li>
+    </ul>
+
+    <h2>Invisible characters</h2>
+    <p>Some hidden text isn't hidden by formatting at all. It's made of characters that take up no space:</p>
+    <ul>
+      <li><strong>Zero-width characters</strong> can be scattered through a document so every copy is slightly different. When one leaks, the pattern shows whose copy it was. This is called a canary trap.</li>
+      <li><strong>Unicode tag characters</strong> can carry a whole hidden message, invisible on screen. The scan decodes it and shows you what it says.</li>
+      <li><strong>Look-alike letters</strong>: Cyrillic or Greek characters swapped in for Latin ones that look identical, another way to mark individual copies.</li>
+    </ul>
+    <p>These work in text files too, not just PDFs.</p>
+
+    <h2>Why it matters</h2>
+    <p><strong>If you're sending a file</strong>, hidden text can reveal what you thought you'd removed, and tracking marks can tie the file back to you.</p>
+    <p><strong>If you received one</strong>, hidden text can be aimed at whoever, or whatever, reads it next: keywords stuffed into a resume for screening software, or instructions hidden for AI tools that summarize the document.</p>
+
+    <h2>Removing it</h2>
+    <p>Choose <strong>Flatten to images</strong> and every page is rebuilt from what's visible, so nothing hidden can survive. Choose <strong>Keep selectable text</strong> to keep the PDF searchable while hidden text, annotations, attachments, scripts, metadata and earlier versions are removed. The clean copy is scanned again before you download it.</p>
+
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/check-pdf-redaction">Check if a PDF redaction actually worked</a></li>
+      <li><a href="/remove-word-metadata">Remove hidden data from a Word document</a></li>
+      <li><a href="/famous-metadata-leaks">Real cases where a file gave someone away</a></li>
+    </ul>

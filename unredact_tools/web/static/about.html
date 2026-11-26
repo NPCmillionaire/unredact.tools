@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>About · unredact.tools</title>
+<meta name="description" content="unredact.tools started as an internal tool to keep my clients safe. Here's where it came from, who it's for, and what it does.">
+<link rel="canonical" href="https://unredact.tools/about">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="unredact.tools">
+<meta property="og:title" content="About · unredact.tools">
+<meta property="og:description" content="unredact.tools started as an internal tool to keep my clients safe. Here's where it came from, who it's for, and what it does.">
+<meta property="og:url" content="https://unredact.tools/about">
+<meta property="og:image" content="https://unredact.tools/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav>
+    <a href="/about" aria-current="page">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/donate">Donate</a>
+    <a href="https://github.com/NPCmillionaire/unredact.tools" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </nav>
+</header>
+
+<main class="prose">
+  <p class="eyebrow">About</p>
+  <h1>Built to keep my clients <span class="hl">safe</span>.</h1>
+  <p class="lede">unredact.tools didn't start as a website. It started as an internal tool I wrote for my clients, so nothing they sent out could give them away.</p>
+
+  <h2>Where it came from</h2>
+  <p>My clients send files to people they can't fully trust: a photo to a stranger, a filing to a court, a document to a reporter. Each of those files can carry far more than what's on screen. A phone photo can hold the exact spot it was taken and the serial number of the phone. A PDF can hold the text under its black boxes. A Word file can hold every edit and every name that touched it.</p>
+  <p>Checking all of that by hand, file by file, was slow and easy to get wrong. So I wrote a tool to do it. Before anything left a client's hands, it went through this first: scan it, see exactly what it gives away, then send a clean copy instead.</p>
+  <p>Every time a new kind of leak turned up, I added a check for it. It started with GPS coordinates and device serials. Then came failed redactions, tracked changes and hidden text, then printer tracking dots, faces, license plates and even shadows that can date a photo.</p>
+  <p>None of these mistakes are unique to my clients. They happen to anyone who shares a file. So the tool is now public, free to use and open source.</p>
+
+  <h2>Who it's for</h2>
+  <p>Anyone whose safety, case or livelihood depends on what their files <em>don't</em> say:</p>
+  <ul>
+    <li><strong>Journalists and their sources</strong>, who need a leaked document to reveal the story without revealing whose copy it was.</li>
+    <li><strong>Whistleblowers</strong> handing over evidence without handing over their identity.</li>
+    <li><strong>Lawyers and paralegals</strong> filing redacted documents that have to stay redacted.</li>
+    <li><strong>People escaping stalking or abuse</strong>, sharing photos without giving away where they live now.</li>
+    <li><strong>Activists and organizers</strong> posting from protests and meetings without exposing the people in the shot.</li>
+    <li><strong>Content creators</strong> posting photos and videos without revealing where they live, where they film, or the device they use.</li>
+    <li><strong>Investigators and researchers</strong> who handle sensitive material and need to pass it on cleanly.</li>
+    <li><strong>Everyone else</strong> who sells something online, posts a photo, or emails a document and would rather it didn't say more than intended.</li>
+  </ul>
+
+  <h2>This happens to real people</h2>
+  <table>
+    <thead><tr><th>Year</th><th>What happened</th></tr></thead>
+    <tbody>
+      <tr><td>2012</td><td>John McAfee was located while hiding from authorities, from the GPS data in a photo a journalist posted.</td></tr>
+      <tr><td>2017</td><td>The source of a leaked NSA document was identified from printer tracking dots on the scan, which revealed the printer and when it printed.</td></tr>
+      <tr><td>2019</td><td>Paul Manafort's lawyers filed a “redacted” PDF with black boxes drawn over text that was still there. Reporters copied it out within minutes.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>Scan.</strong> Finds what's leaking and explains it in plain English: where, who, which device, when, what software, which organization, what's hidden and what's tracking you.</li>
+    <li><strong>Sanitize.</strong> Rebuilds a clean copy from the visible content only, then re-scans that copy to prove nothing survived. Your original file is never modified.</li>
+  </ul>
+
+  <h2>Your files</h2>
+  <p>Pages load through Cloudflare's network so they're fast everywhere, but uploads and contact messages go straight to our own server and never pass through Cloudflare. Uploads are processed in a temporary folder that is deleted before the response is sent. Nothing is stored or logged except a running count of files checked and cleaned, and the site uses no cookies, analytics or third-party scripts. For anything truly sensitive, run it on your own machine instead:</p>
+  <p><code>pip install "unredact-tools[web]" &amp;&amp; unredact.tools web</code></p>
+
+  <h2>Open source</h2>
+  <p>The whole thing is MIT-licensed and on <a href="https://github.com/NPCmillionaire/unredact.tools" target="_blank" rel="noopener noreferrer">GitHub</a>. Questions, bug reports or a file it got wrong? <a href="/contact">Get in touch</a>.</p>
+
+  <h2>Who builds it</h2>
+  <p>unredact.tools is built and run by <a href="https://legitbiz.xyz">Legit Biz Consulting</a>, which builds internal tools, lead engines and security basics for small businesses and creatives. More free tools, including the in-browser security toolbox, are at <a href="https://legitbiz.xyz/tools/">legitbiz.xyz/tools</a>.</p>
+</main>
+
+<footer>
+  <span>unredact.tools</span>
+  <span>Original files are never modified. Every clean copy is re-scanned before you get it.</span>
+  <span>Tor mirror: <a class="onion" href="http://unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion/" rel="noopener noreferrer">unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion</a></span>
+  <span><a href="/guides">Guides</a></span>
+  <span>Developed by <a href="https://legitbiz.xyz" rel="noopener noreferrer">legitbiz.xyz</a></span>
+</footer>
+</body>
+</html>

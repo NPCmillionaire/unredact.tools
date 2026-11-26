@@ -1,0 +1,39 @@
+    <h2>Why PDF redactions fail</h2>
+    <p>A PDF stores text and drawings as separate layers. Putting a black shape on top of a sentence hides it from your eyes but leaves the sentence in the file, where anyone can select it, copy it or search for it. The common mistakes:</p>
+    <ul>
+      <li><strong>Drawn boxes.</strong> A black rectangle, or black highlighting, placed over the text with a drawing or comment tool.</li>
+      <li><strong>Black images.</strong> A black picture pasted over the words. The text layer underneath is untouched.</li>
+      <li><strong>Unapplied redactions.</strong> Redaction tools in PDF editors usually work in two steps: mark the areas, then apply. If the file is saved after marking but before applying, the text is still there.</li>
+      <li><strong>Scanned pages with a text layer.</strong> Scans often have an invisible OCR text layer. Blacking out the image doesn't touch that layer.</li>
+      <li><strong>Earlier versions.</strong> Many editors save changes by adding them to the end of the file. The version from before the redaction can still be inside, complete.</li>
+    </ul>
+
+    <h2>The quick check you can do by hand</h2>
+    <p>Open the PDF, select all the text on a redacted page, copy it and paste it into a plain text editor. Or search the PDF for a word you know you redacted. If it shows up, the redaction failed.</p>
+    <p>That catches the most common failure but misses others: earlier versions saved inside the file, hidden layers, attachments and metadata such as the author's name or a file path containing a username. The scan above checks for all of them.</p>
+
+    <h2>What the scan checks</h2>
+    <ul>
+      <li>Text still present under black boxes, black images and unapplied redaction marks, with the words it finds underneath.</li>
+      <li>Earlier versions of the file, with a list of the text deleted since.</li>
+      <li>White, transparent, microscopic and off-page text.</li>
+      <li>Hidden layers, attachments and embedded files, each scanned in turn.</li>
+      <li>Author, creating software, document IDs and usernames in file paths.</li>
+      <li>Metadata inside the images in the PDF, which keep their own GPS and camera data.</li>
+      <li>Printer tracking dots on scanned pages.</li>
+    </ul>
+
+    <h2>Two ways to fix it</h2>
+    <p><strong>Flatten to images</strong> (the default) renders every page to a picture and builds a new PDF from those pictures. Nothing survives except what you could see on screen. Use this when the stakes are real.</p>
+    <p><strong>Keep selectable text</strong> is for when the PDF has to stay searchable, like a court filing or a published report. It removes the text under every detected black box for real, strips hidden text, annotations, JavaScript, attachments and metadata, rewrites the file so earlier versions are gone, and gives it a fresh document ID.</p>
+    <p>Either way, the clean copy is scanned again before you download it.</p>
+
+    <h2>It has happened to lawyers and governments</h2>
+    <p>In 2019, Paul Manafort's lawyers filed a court document with black boxes over text that was still in the file. Reporters copied it out within hours and learned he was accused of sharing campaign polling data. In 2009, the TSA posted a screening procedures manual online with redactions that could be copied out the same way. <a href="/famous-metadata-leaks">More cases like these</a>.</p>
+
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/find-hidden-text-in-pdf">Find hidden text in a PDF</a></li>
+      <li><a href="/remove-word-metadata">Remove hidden data from a Word document</a></li>
+      <li><a href="/remove-photo-metadata">Remove the location from a photo</a></li>
+    </ul>

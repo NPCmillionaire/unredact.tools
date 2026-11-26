@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "unredact.tools",
+  "short_name": "unredact",
+  "version": "0.1.2",
+  "description": "See what a file gives away before you upload it. Catches GPS, authors, fake redactions and hidden text, then cleans it. 100% local.",
+  "homepage_url": "https://unredact.tools",
+  "minimum_chrome_version": "116",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": {
+    "default_title": "unredact.tools",
+    "default_popup": "popup/popup.html",
+    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "options_page": "options/options.html",
+  "permissions": ["contextMenus", "storage", "scripting", "offscreen", "activeTab"],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.office365.com/*",
+    "https://mail.proton.me/*",
+    "https://drive.proton.me/*",
+    "https://app.slack.com/*",
+    "https://discord.com/*",
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://www.reddit.com/*",
+    "https://old.reddit.com/*",
+    "https://new.reddit.com/*",
+    "https://web.telegram.org/*",
+    "https://web.whatsapp.com/*",
+    "https://www.facebook.com/*",
+    "https://www.messenger.com/*",
+    "https://www.linkedin.com/*",
+    "https://github.com/*",
+    "https://drive.google.com/*",
+    "https://docs.google.com/*",
+    "https://www.dropbox.com/*",
+    "https://onedrive.live.com/*",
+    "https://*.sharepoint.com/*",
+    "https://app.box.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

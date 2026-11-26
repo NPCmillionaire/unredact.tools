@@ -1,0 +1,39 @@
+    <h2>What a Word file keeps</h2>
+    <p>A .docx file is a zip archive of XML files, and only some of them are the text you see. The rest can include:</p>
+    <ul>
+      <li><strong>Names</strong>: author, last modified by, manager and company.</li>
+      <li><strong>Tracked changes</strong>: every deletion still in the file, with who made it and when.</li>
+      <li><strong>Comments</strong>, with commenters' names and sometimes their email addresses.</li>
+      <li><strong>Hidden text</strong>: text formatted as hidden, white on white, or shrunk too small to see.</li>
+      <li><strong>File paths</strong> to the template or linked data, which often contain your username, like <code>C:\Users\jsmith\…</code>, or an internal server or SharePoint address.</li>
+      <li><strong>Session IDs</strong> Word adds to each editing session, which can show that two documents came from the same draft.</li>
+      <li><strong>Editing statistics</strong>: total editing time, revision count and when it was last printed.</li>
+      <li><strong>Your organization's Microsoft 365 tenant ID</strong>, left behind by sensitivity labels.</li>
+      <li><strong>Photos inside the document</strong>, which keep their own GPS and camera data.</li>
+    </ul>
+
+    <h2>Excel and PowerPoint too</h2>
+    <p>Spreadsheets can carry hidden sheets, rows and columns, and pivot caches that still hold data deleted from the visible sheet. Presentations keep speaker notes and hidden slides. XLSX and PPTX files, and their macro-enabled versions, are checked and cleaned the same way.</p>
+
+    <h2>What about Word's Document Inspector?</h2>
+    <p>Office's built-in Document Inspector covers a lot of this, if you remember to run it every time. It doesn't show you what it found in plain terms, and it leaves the photos inside the document with their own metadata. This tool shows you what the file gives away before you change anything, then checks the clean copy again.</p>
+
+    <h2>What cleaning does</h2>
+    <ul>
+      <li>Empties author, company and other properties.</li>
+      <li>Accepts all tracked changes, so deleted text is really gone. If you meant to reject some changes, do that in Word first.</li>
+      <li>Deletes comments, the list of people who edited the file, and speaker notes.</li>
+      <li>Removes hidden text and editing session IDs.</li>
+      <li>Clears template and data-source paths.</li>
+      <li>Unhides hidden sheets, rows and slides, so you can see everything you're about to send.</li>
+      <li>Cleans the photos and media inside the document.</li>
+      <li>Resets the timestamps inside the zip archive.</li>
+    </ul>
+    <p>Older .doc, .xls and .ppt files aren't supported. Save them in the newer format first.</p>
+
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/check-pdf-redaction">Check if a PDF redaction actually worked</a></li>
+      <li><a href="/find-hidden-text-in-pdf">Find hidden text in a PDF</a></li>
+      <li><a href="/remove-photo-metadata">Remove the location from a photo</a></li>
+    </ul>
