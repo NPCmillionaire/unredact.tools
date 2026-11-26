@@ -453,6 +453,11 @@ def contact():
     return FileResponse(str(STATIC / "contact.html"))
 
 
+@app.get("/extension")
+def extension():
+    return FileResponse(str(STATIC / "extension.html"))
+
+
 @app.get("/privacy")
 def privacy():
     return FileResponse(str(STATIC / "privacy.html"))
@@ -594,6 +599,7 @@ def llms_txt():  # a plain summary for AI assistants and their crawlers (llmstxt
         "(https://legitbiz.xyz).\n\n"
         "## Main pages\n\n"
         f"- [Scanner]({SITE}/): drop a file, see what it gives away, download a clean copy\n"
+        f"- [Chrome extension]({SITE}/extension): checks files before you upload them, in the browser\n"
         f"- [About]({SITE}/about): who it's for and how it works\n"
         f"- [Guides]({SITE}/guides): how files leak and how to check them\n"
         "- [Source code](https://github.com/NPCmillionaire/unredact.tools)\n\n"
@@ -602,7 +608,7 @@ def llms_txt():  # a plain summary for AI assistants and their crawlers (llmstxt
 
 @app.get("/sitemap.xml")
 def sitemap():
-    paths = ["/", "/about", "/privacy", "/contact", "/donate", "/guides", *(f"/{s}" for s in GUIDES)]
+    paths = ["/", "/extension", "/about", "/privacy", "/contact", "/donate", "/guides", *(f"/{s}" for s in GUIDES)]
     urls = "".join(f"  <url><loc>{SITE}{p}</loc></url>\n" for p in paths)
     return Response('<?xml version="1.0" encoding="UTF-8"?>\n'
                     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

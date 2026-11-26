@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Chrome extension · unredact.tools</title>
+<meta name="description" content="Install the unredact.tools Chrome extension: it checks photos, PDFs and Office files for GPS, names and fake redactions before you upload them, on your device.">
+<link rel="canonical" href="https://unredact.tools/extension">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="unredact.tools">
+<meta property="og:title" content="Chrome extension · unredact.tools">
+<meta property="og:description" content="Install the unredact.tools Chrome extension: it checks photos, PDFs and Office files for GPS, names and fake redactions before you upload them, on your device.">
+<meta property="og:url" content="https://unredact.tools/extension">
+<meta property="og:image" content="https://unredact.tools/static/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="br">[</span>unredact<span class="dot">.</span>tools<span class="br">]</span></a>
+  <nav>
+    <a href="/extension" aria-current="page">Chrome extension</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/donate">Donate</a>
+    <a href="https://github.com/NPCmillionaire/unredact.tools" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </nav>
+</header>
+
+<main class="prose ext-page">
+  <p class="eyebrow">Chrome extension</p>
+  <h1>Check files <span class="hl">before you send them</span>.</h1>
+  <p class="lede">The same checks as this site, built into your browser. When you attach a photo, PDF or Office file on an email, chat, social or cloud storage site, it's scanned first. If it leaks, you choose: Clean &amp; Upload, Upload Original, or Cancel.</p>
+
+  <div class="status"><span>⏳</span><span><b>Waiting for Chrome Web Store approval.</b> Until it's listed, you can install it by hand in about two minutes. You'll get the same extension the store will have.</span></div>
+
+  <div class="dl">
+    <a class="btn" href="https://github.com/NPCmillionaire/unredact.tools/releases/download/extension-v0.1.2/unredact-tools-chrome-0.1.2.zip">Download the extension (.zip)</a>
+    <span class="meta">v0.1.2 · 1.3 MB · Chrome, Edge, Brave, Arc, Vivaldi</span>
+  </div>
+
+  <img class="shot" src="/static/extension-toast.jpg" width="1280" height="800" alt="An email with a PDF attached. The extension's warning lists 24 leaks, including text under a redaction box, deleted text and GPS, with Clean &amp; Upload, Upload Original and Cancel buttons." loading="lazy">
+
+  <h2>Install it</h2>
+  <ol class="steps">
+    <li><b>Download the zip</b> above and unzip it (double-click it on a Mac, or right-click → Extract All on Windows). You'll get a folder called <code>unredact-tools-chrome-0.1.2</code>. Move it somewhere you'll keep it, like your Documents folder. If you delete it, the extension stops working.</li>
+    <li><b>Open the extensions page.</b> Type <code>chrome://extensions</code> into the address bar and press Enter. In Edge it's <code>edge://extensions</code>, in Brave <code>brave://extensions</code>.</li>
+    <li><b>Turn on Developer mode</b> with the switch in the top-right corner (in Edge it's in the left sidebar).</li>
+    <li><b>Click “Load unpacked”</b> and choose the folder from step 1, the one with <code>manifest.json</code> inside.</li>
+    <li><b>Pin it</b> (optional): click the puzzle-piece icon in the toolbar, then the pin next to unredact.tools.</li>
+    <li><b>Reload any tabs</b> that were already open, such as your email or chat, so the upload check can start there.</li>
+  </ol>
+  <p>That's it. A settings page opens with the list of protected sites. Every site can be turned off, and you can add your own from the toolbar button.</p>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>Clean before send.</strong> Uploads through the file picker or drag-and-drop are held for a moment and scanned. Clean files go straight through; leaky ones get a short warning listing what they give away.</li>
+    <li><strong>Right-click to inspect.</strong> Right-click any image, PDF, video or download link and choose “Inspect with unredact.tools” to see what a file you found online reveals, without saving it first.</li>
+    <li><strong>Finds:</strong> GPS, names, device serial numbers and uncropped thumbnails in photos. Text under black boxes, deleted text from earlier versions, and attachments in PDFs. Comments, tracked changes, hidden text and speaker notes in Word, Excel and PowerPoint.</li>
+  </ul>
+  <img class="shot" src="/static/extension-report.jpg" width="1280" height="800" alt="The extension's report for a PDF: 24 leaks found, with names, software, dates and the text recovered from under a black box." loading="lazy">
+
+  <h2>Private by design</h2>
+  <p>Everything runs inside your browser. No file is uploaded to us or anyone else, there's no account and no analytics. Details are on the <a href="/privacy">privacy page</a>, and the code is <a href="https://github.com/NPCmillionaire/unredact.tools/tree/main/extension" target="_blank" rel="noopener noreferrer">on GitHub</a>.</p>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li><strong>“Disable developer mode extensions”</strong>: Chrome may show this reminder for extensions installed by hand. Click away from it, not on Disable. It stops once the store version is out.</li>
+    <li><strong>Updates</strong> aren't automatic for a hand-installed copy. When the store listing goes live, remove this copy and install from the store to get updates.</li>
+    <li><strong>Check the download</strong> (optional). SHA-256 of the zip: <code class="hash">69a58480eb268005f60ae147c393f3ab9364e66fdeca37c9e0eb8cad49feb9ee</code></li>
+    <li><strong>Firefox and Safari</strong> aren't supported yet. Use <a href="/">the website</a> or <code>pip install "unredact-tools[web]"</code> in the meantime.</li>
+  </ul>
+</main>
+
+<footer>
+  <span>unredact.tools</span>
+  <span>Original files are never modified. Every clean copy is re-scanned before you get it.</span>
+  <span>Tor mirror: <a class="onion" href="http://unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion/" rel="noopener noreferrer">unred42id7l3elhrlj2oveau3vg2osq2w3qzguj4ajxrg3vycohoueyd.onion</a></span>
+  <span><a href="/guides">Guides</a></span>
+  <span>Developed by <a href="https://research.legitbiz.xyz" rel="noopener noreferrer">legit{biz} --research</a></span>
+</footer>
+</body>
+</html>

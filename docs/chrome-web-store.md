@@ -1,6 +1,6 @@
 # Chrome Web Store listing
 
-Copy these into the Developer Dashboard. Images are generated into `dist/chrome-store/` (not committed).
+Copy these into the Developer Dashboard. Don't list site or brand names in the description or image captions: the store rejected v0.1.2 for keyword spam (Yellow Argon) over the list of supported sites. Images are generated into `dist/chrome-store/` (not committed).
 
 ## Store listing
 
@@ -27,7 +27,7 @@ no uploads. no account. no analytics. everything runs on your machine.
 
 //CLEAN BEFORE SEND
 
-attach a file on gmail, outlook, proton, slack, discord, x, reddit, telegram, whatsapp, facebook, linkedin, github, google drive, dropbox, onedrive or box. the upload is held for a second and scanned.
+attach a file on a site you've protected. common email, chat, social and cloud storage sites are on out of the box. the upload is held for a second and scanned.
 
 if it leaks, you're told exactly what:
     "3 leaks found (GPS, Author, Fake redaction)"
