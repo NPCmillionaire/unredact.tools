@@ -24,7 +24,7 @@ dependencies = ["pillow>=10.3", "pymupdf>=1.24", "pikepdf>=8", "lxml>=5"]
 
 [project.optional-dependencies]
 heic = ["pillow-heif>=0.16"]
-vision = ["opencv-python-headless>=4.8", "zxing-cpp>=2.2", "numpy>=1.24"]
+vision = ["opencv-python-headless>=4.8", "zxing-cpp>=2.2,<3.2", "numpy>=1.24"]
 web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 geo = ["geonamescache>=2.0"]
 dev = ["pytest", "httpx", "piexif", "python-docx>=1.2", "openpyxl", "python-pptx"]
