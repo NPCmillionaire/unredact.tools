@@ -13,7 +13,10 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-import numpy as np
+try:  # only the grid search (locate) needs numpy, which ships with the [vision] extra
+    import numpy as np
+except ImportError:  # pragma: no cover - exercised by test_sun_without_numpy
+    np = None
 
 
 def solar_position(dt: datetime, lat, lon):
@@ -42,6 +45,10 @@ def solar_position(dt: datetime, lat, lon):
                            + 4 * e * y * math.sin(mr) * math.cos(2 * l0r)
                            - 0.5 * y * y * math.sin(4 * l0r) - 1.25 * e * e * math.sin(2 * mr))
     minutes = dt.hour * 60 + dt.minute + dt.second / 60
+    if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+        return _position_scalar(minutes, eot, decl, float(lat), float(lon))
+    if np is None:
+        raise ImportError("array inputs need numpy: pip install 'unredact-tools[vision]'")
     lat = np.asarray(lat, dtype=float)
     lon = np.asarray(lon, dtype=float)
     tst = (minutes + eot + 4 * lon) % 1440
@@ -65,6 +72,34 @@ def solar_position(dt: datetime, lat, lon):
     az = np.where(ha > 0, (az + 180) % 360, (540 - az) % 360)
     if elev.ndim == 0:
         return float(elev), float(az)
+    return elev, az
+
+
+def _position_scalar(minutes, eot, decl, lat, lon):
+    """solar_position for one point, in plain math (a base install has no numpy)."""
+    tst = (minutes + eot + 4 * lon) % 1440
+    ha = tst / 4 + 180 if tst / 4 < 0 else tst / 4 - 180
+    latr, declr, har = math.radians(lat), math.radians(decl), math.radians(ha)
+    cosz = max(-1.0, min(1.0, math.sin(latr) * math.sin(declr) + math.cos(latr) * math.cos(declr) * math.cos(har)))
+    zen = math.degrees(math.acos(cosz))
+    elev = 90 - zen
+    if elev > 85:
+        refr = 0.0
+    else:
+        te = math.tan(math.radians(elev))
+        if elev > 5:
+            refr = 58.1 / te - 0.07 / te ** 3 + 0.000086 / te ** 5
+        elif elev > -0.575:
+            refr = 1735 + elev * (-518.2 + elev * (103.4 + elev * (-12.79 + elev * 0.711)))
+        else:
+            refr = -20.772 / te
+        refr /= 3600
+    elev += refr
+    sz = math.sin(math.radians(zen))
+    denom = math.cos(latr) * sz
+    cos_az = (math.sin(latr) * math.cos(math.radians(zen)) - math.sin(declr)) / denom if denom else 1.0
+    az = math.degrees(math.acos(max(-1.0, min(1.0, cos_az))))
+    az = (az + 180) % 360 if ha > 0 else (540 - az) % 360
     return elev, az
 
 
