@@ -168,3 +168,47 @@ def add_findings(report, data, source="scene AI"):
     t = data.get("time_guess")
     if t and str(t).lower() != "unknown":
         report.add("low", "time", "Scene: time guess", str(t), source)
+
+
+SHADOW_PROMPT = """Find vertical objects that cast a clear shadow on flat ground in this image \
+(people standing upright, poles, posts, signposts, bollards, fence posts, building corners).
+For each one give three pixel positions in the image you were given:
+  base = where the object meets the ground, top = its highest point, shadow_tip = the far end of its shadow
+(the point of the shadow that corresponds to the object's top).
+If a horizon (sea, flat land) is visible, give two points on it, far apart.
+Reply with ONLY JSON:
+{"objects": [{"what": "lamp post", "base": [x, y], "top": [x, y], "shadow_tip": [x, y]}],
+ "horizon": [[x1, y1], [x2, y2]] or null}
+Only include objects whose base, top AND shadow tip are all visible. If none, return {"objects": [], "horizon": null}."""
+
+
+def propose_shadow_points(raw: bytes, provider="ollama", model=None) -> dict:
+    """Ask a vision model for object/shadow points. Returns {"objects": [(base, top, tip)], "horizon"}
+    in original-image pixels (EXIF rotation applied)."""
+    global PROMPT
+    if provider not in DEFAULT_MODELS:
+        raise SceneError(f"unknown provider {provider!r} (use ollama or anthropic)")
+    model = model or os.environ.get("UNREDACT_SCENE_MODEL") or DEFAULT_MODELS[provider]
+    b64, scale = _prepare(raw)
+    saved, PROMPT = PROMPT, SHADOW_PROMPT
+    try:
+        text = _ollama(b64, model) if provider == "ollama" else _anthropic(b64, model)
+    finally:
+        PROMPT = saved
+    data = parse(text)
+
+    def pt(v):
+        if isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) for c in v):
+            return (v[0] / scale, v[1] / scale)
+        return None
+
+    objs = []
+    for o in data.get("objects") or []:
+        b, t, s = pt(o.get("base")), pt(o.get("top")), pt(o.get("shadow_tip"))
+        if b and t and s:
+            objs.append((b, t, s))
+    hz = data.get("horizon")
+    hz = (pt(hz[0]), pt(hz[1])) if isinstance(hz, list) and len(hz) == 2 else None
+    if hz and (hz[0] is None or hz[1] is None):
+        hz = None
+    return {"objects": objs, "horizon": hz, "model": model}

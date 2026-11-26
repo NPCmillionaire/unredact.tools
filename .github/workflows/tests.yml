@@ -12,5 +12,36 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg tesseract-ocr
-      - run: pip install -e ".[dev,vision,web]"
+      - run: pip install -e ".[dev,vision,web,geo]"
       - run: pytest -q
+
+  installer:
+    # runs the real one-line installer on clean Linux and macOS runners
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -S warning install.sh
+        if: runner.os == 'Linux'
+      - name: install (piped, like users run it)
+        run: cat install.sh | bash -s -- --from . -y
+      - name: smoke test
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          unredact.tools --version
+          unredact tip --no-color
+          # build a GPS-tagged test photo with the installed tool's own Python
+          # (Homebrew Python refuses global pip installs, PEP 668)
+          "$HOME/.local/share/unredact.tools/venv/bin/python" -c "
+          from PIL import Image
+          e = Image.Exif(); e[0x010F] = 'Apple'
+          e[0x8825] = {1: 'N', 2: (41.0, 6.0, 0.0), 3: 'W', 4: (80.0, 39.0, 0.0)}
+          Image.new('RGB', (64, 64)).save('t.jpg', exif=e)"
+          unredact.tools scan t.jpg --no-color | tee out.txt
+          grep -q "GPS" out.txt
+          unredact.tools sanitize t.jpg --no-color
+      - name: uninstall
+        run: bash install.sh --uninstall && test ! -e "$HOME/.local/bin/unredact.tools"
