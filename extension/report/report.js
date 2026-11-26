@@ -45,9 +45,26 @@ async function fromUrl(url) {
       const got = await chrome.runtime.sendMessage({ op: "fetchInTab", tabId, frameId: Number(params.get("frame") || 0), url }).catch((x) => ({ error: String(x) }));
       if (got && !got.error) { bytes = fromB64(got.b64); type = got.type; disp = got.disposition; }
     }
-    if (!bytes) return fail(`Couldn't download the file (${esc(e.message || e)}). If it needs a login, download it and drop it here instead.`);
+    if (!bytes) {
+      const origin = originPattern(url);
+      if (origin && !(await chrome.permissions.contains({ origins: [origin] }))) return askAccess(url, origin);
+      return fail(`Couldn't download the file (${esc(e.message || e)}). If it needs a login, download it and drop it here instead.`);
+    }
   }
   return run({ name: nameFrom(url, disp, type), type, bytes, source: url });
+}
+
+function originPattern(url) {
+  try { const x = new URL(url); return /^https?:$/.test(x.protocol) ? `${x.protocol}//${x.hostname}/*` : null; } catch { return null; }
+}
+
+// Files on sites outside the built-in list need a one-time OK for that site (an optional host permission).
+function askAccess(url, origin) {
+  const host = new URL(url).hostname;
+  fail(`To check this file, unredact.tools needs your OK to download from <b>${esc(host)}</b>. The file is still only read on this device.<br><br><button class="btn primary" id="grant">Allow ${esc(host)}</button>`);
+  $("grant").onclick = async () => {
+    if (await chrome.permissions.request({ origins: [origin] }).catch(() => false)) fromUrl(url);
+  };
 }
 
 function fail(msg) {

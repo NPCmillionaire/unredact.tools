@@ -21,9 +21,23 @@ chrome.runtime.onStartup.addListener(syncScripts);
 chrome.storage.onChanged.addListener((c, area) => {
   if (area === "sync" && (c.sites || c.custom)) syncScripts();
 });
+// custom sites are optional host permissions: re-register when the user grants or revokes one
+chrome.permissions.onAdded.addListener(syncScripts);
+chrome.permissions.onRemoved.addListener(syncScripts);
 
-async function syncScripts() {
-  const matches = activeMatches(await getSettings());
+// serialize: install, startup, storage and permission events can fire together, and overlapping
+// unregister/register calls fail with duplicate script IDs
+let syncing = Promise.resolve();
+function syncScripts() {
+  syncing = syncing.then(doSyncScripts, doSyncScripts);
+  return syncing;
+}
+
+async function doSyncScripts() {
+  const matches = [];
+  for (const m of activeMatches(await getSettings())) {
+    if (await chrome.permissions.contains({ origins: [m] }).catch(() => false)) matches.push(m);
+  }
   const existing = (await chrome.scripting.getRegisteredContentScripts({ ids: SCRIPT_IDS })).map((s) => s.id);
   if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: existing });
   if (!matches.length) return;

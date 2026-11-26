@@ -16,27 +16,73 @@ Copy these into the Developer Dashboard. Images are generated into `dist/chrome-
 **Description:**
 
 ```
-Files carry more than what's on screen. A phone photo can hold the exact spot it was taken and the serial number of the phone. A "redacted" PDF can still hold the text under its black boxes. A Word file can hold every edit and every name that touched it.
+your files talk. this shuts them up.
 
-unredact.tools checks your files before they leave your browser, and shows you exactly what they give away.
+a phone photo knows where you were standing and which phone took it. a "redacted" PDF still has the text under the black box. a word doc remembers every edit and every name that touched it. you can't see any of it. everyone you send it to can.
 
-CLEAN BEFORE SEND
-When you attach a file on Gmail, Outlook, Proton, Slack, Discord, X, Reddit, Telegram, WhatsApp, Facebook, LinkedIn, GitHub, Google Drive, Dropbox, OneDrive or Box, the upload is held for a moment and scanned. If anything leaks, you get a short warning such as "3 leaks found (GPS, Author, Fake redaction)" and a choice: Clean & Upload, Upload Original, or Cancel. Works with the file picker and drag-and-drop. Turn any site off, or add your own.
+unredact.tools catches it before it leaves your browser. then it cleans it.
 
-INSPECT FILES YOU FIND ONLINE
-Right-click any image, PDF, video or download link and choose "Inspect with unredact.tools". A report shows what the file reveals: where (GPS, place names), who (authors, usernames, camera owner), which device (make, model, serial numbers), when, and what's hidden. Download a clean copy, or the things recovered from inside the file.
+no uploads. no account. no analytics. everything runs on your machine.
 
-WHAT IT FINDS
-• Photos (JPEG, PNG, WebP, HEIC, TIFF): GPS, device and lens serial numbers, owner and artist names, place names, uncropped thumbnails, motion-photo video, AI image prompts
-• PDFs: fake redactions (text under black boxes), invisible text, unapplied redactions, deleted text in earlier versions, attachments, comments, scripts, form data, author and software, GPS in embedded photos
-• Word, Excel, PowerPoint: authors and company, comments, tracked changes, hidden text, hidden sheets and rows, speaker notes, file paths with usernames
-• Videos (MP4, MOV): GPS and device
-• Text: invisible watermark characters
 
-PRIVATE BY DESIGN
-Everything runs inside your browser. No file is uploaded to us or anyone else, there's no account, and there are no analytics. The extension is open source.
+//CLEAN BEFORE SEND
 
-For visual checks (faces, license plates, text in screenshots, printer tracking dots), run the free unredact.tools desktop tool and use "Deep scan" from any report.
+attach a file on gmail, outlook, proton, slack, discord, x, reddit, telegram, whatsapp, facebook, linkedin, github, google drive, dropbox, onedrive or box. the upload is held for a second and scanned.
+
+if it leaks, you're told exactly what:
+    "3 leaks found (GPS, Author, Fake redaction)"
+then you pick: Clean & Upload. Upload Original. Cancel.
+
+works with the file picker and drag-and-drop. turn any site off. add your own.
+
+
+//INSPECT ANYTHING YOU FIND ONLINE
+
+right-click any image, PDF, video or download link → "Inspect with unredact.tools".
+
+the report tells you what the file gives away:
+>>> where: GPS, place names
+>>> who: authors, usernames, camera owner
+>>> which device: make, model, serial numbers
+>>> when: capture and edit times
+>>> what's hidden: text under black boxes, deleted text, attachments, thumbnails
+
+download a clean copy, or pull out what was recovered from inside it.
+
+
+//WHAT IT CATCHES
+
+>>> photos (JPEG, PNG, WebP, HEIC, TIFF): GPS, device and lens serials, owner and artist names, place names, uncropped thumbnails, motion-photo video, AI image prompts
+>>> PDFs: fake redactions, invisible text, unapplied redactions, deleted text in earlier versions, attachments, comments, scripts, form data, author and software, GPS in embedded photos
+>>> word, excel, powerpoint: authors and company, comments, tracked changes, hidden text, hidden sheets and rows, speaker notes, file paths with usernames
+>>> video (MP4, MOV): GPS and device
+>>> text: invisible watermark characters
+
+
+//WHAT IT CLEANS
+
+>>> JPEG, PNG, WebP: metadata stripped losslessly. orientation and color profile kept.
+>>> PDF: rebuilt from what's visible. if hidden text is found, pages are flattened so nothing underneath survives.
+>>> word, excel, powerpoint: everything above except hidden sheets and rows.
+>>> text: watermark characters removed.
+
+HEIC, TIFF and video are detected, not cleaned. use the desktop tool for those. we'd rather tell you than pretend.
+
+
+//PRIVATE BY DESIGN
+
+>>> no file leaves your device. not to us. not to anyone.
+>>> it only acts when you right-click a file or upload on a site you protect. it doesn't read or send page content.
+>>> no account. no analytics. no tracking.
+>>> open source: github.com/NPCmillionaire/unredact.tools
+>>> free. forever.
+
+
+//NEED MORE
+
+faces, license plates, text in screenshots, printer tracking dots: run the free unredact.tools desktop tool and hit "Deep scan" from any report.
+
+built by legit{biz} --research. we publish the code. we publish the receipts.
 ```
 
 **Homepage URL:** https://unredact.tools
@@ -66,7 +112,7 @@ For visual checks (faces, license plates, text in screenshots, printer tracking 
 - **scripting:** Registers the upload checker on the sites the user has turned on, and reads `blob:` files the user right-clicks, which only exist inside that page.
 - **offscreen:** Runs the file scanner (PDF rendering, image and Office parsing) in an offscreen document so pages and the service worker stay responsive.
 - **activeTab:** Lets the toolbar popup show and toggle protection for the current site and inspect the file open in the current tab.
-- **Host permissions (`<all_urls>`):** Users right-click files hosted on any domain, and the extension must fetch that file to inspect it. Users can also add any site to upload protection. The extension only acts when the user right-clicks a file or uploads a file on a protected site. It doesn't read or send page content.
+- **Host permissions:** Only the 16 built-in upload-protection sites (Gmail, Outlook, Slack and so on), where the upload checker runs, plus 127.0.0.1/localhost for the optional local Deep scan. Any other site is an optional permission requested at the moment the user adds it to upload protection or right-clicks a file hosted there. The extension doesn't read or send page content.
 
 **Remote code:** No. All code is packaged in the extension, and the pdf.js, pdf-lib, JSZip and exifr libraries are vendored.
 

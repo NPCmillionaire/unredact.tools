@@ -41,6 +41,10 @@ $("addform").addEventListener("submit", async (e) => {
     const u = new URL(v.replace("*.", "wildcard."));
     v = `${u.protocol}//${u.hostname.replace(/^wildcard\./, "*.")}/*`;
   } catch { $("newsite").setCustomValidity("Not a valid site"); $("newsite").reportValidity(); return; }
+  // other sites are optional host permissions, granted per site
+  if (!(await chrome.permissions.request({ origins: [v] }).catch(() => false))) {
+    $("newsite").setCustomValidity("Chrome didn't grant access to that site"); $("newsite").reportValidity(); return;
+  }
   if (!s.custom.includes(v)) await save({ custom: [...s.custom, v] });
   $("newsite").value = "";
   paintCustom();

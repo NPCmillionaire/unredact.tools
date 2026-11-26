@@ -22,8 +22,21 @@ paint();
 $("toggle").onchange = async (e) => {
   const want = e.target.checked;
   const known = siteFor(url);
-  if (known) s.sites[known.id] = want;
   const pat = `${u.protocol}//${u.hostname}/*`;
+  // Sites outside the built-in list need their own host permission, asked for on this click.
+  // Save first: on some platforms the permission prompt closes the popup before the request resolves;
+  // the service worker re-registers scripts when the grant lands (permissions.onAdded).
+  if (want && !known) {
+    if (!s.custom.includes(pat)) s.custom.push(pat);
+    setSettings({ custom: s.custom });
+    if (!(await chrome.permissions.request({ origins: [pat] }).catch(() => false))) {
+      s.custom = s.custom.filter((p) => p !== pat);
+      await setSettings({ custom: s.custom });
+      e.target.checked = false;
+      return;
+    }
+  }
+  if (known) s.sites[known.id] = want;
   s.custom = s.custom.filter((p) => p !== pat);
   if (want && !known) s.custom.push(pat);
   // a toggle-off on a custom site that matched via a wildcard: drop any custom pattern matching it
